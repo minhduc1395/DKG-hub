@@ -9,7 +9,7 @@ interface Tool {
   title: string;
   description: string;
   icon: any;
-  category: 'Event' | 'Marketing' | 'Nội bộ';
+  category: 'Event' | 'Marketing' | 'Internal';
   url: string;
   allowed_roles: string[]; // e.g., ['staff', 'manager', 'admin']
   color: string;
@@ -41,7 +41,7 @@ const mockTools: Tool[] = [
     title: 'HR Management System',
     description: 'Hệ thống quản lý nhân sự, lương thưởng và phúc lợi.',
     icon: Shield,
-    category: 'Nội bộ',
+    category: 'Internal',
     url: 'https://example.com',
     allowed_roles: ['manager', 'admin'],
     color: 'text-emerald-400 bg-emerald-500/20 border-emerald-500/20',
@@ -51,7 +51,7 @@ const mockTools: Tool[] = [
     title: 'Asset Tracker',
     description: 'Quản lý thiết bị, tài sản và kho bãi của công ty.',
     icon: Database,
-    category: 'Nội bộ',
+    category: 'Internal',
     url: 'https://example.com',
     allowed_roles: ['staff', 'manager'],
     color: 'text-amber-400 bg-amber-500/20 border-amber-500/20',
@@ -71,14 +71,14 @@ const mockTools: Tool[] = [
     title: 'Developer Console',
     description: 'Công cụ dành cho team dev để quản lý API và services.',
     icon: Code,
-    category: 'Nội bộ',
+    category: 'Internal',
     url: 'https://example.com',
     allowed_roles: ['admin'],
     color: 'text-slate-400 bg-slate-500/20 border-slate-500/20',
   }
 ];
 
-const categories = ['All', 'Event', 'Marketing', 'Nội bộ'];
+const categories = ['All', 'Event', 'Marketing', 'Internal'];
 
 interface DkgToolProps {
   user: User;

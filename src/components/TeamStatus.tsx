@@ -14,7 +14,9 @@ import {
   Clock,
   TrendingUp,
   UserCheck,
-  UserX
+  UserX,
+  ArrowRight,
+  User as UserIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
@@ -139,6 +141,25 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
   const pendingFeedbackTasks = tasks.filter(t => t.feedback && t.feedback.status === 'Pending' && t.assignerId === user.id);
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'High': return 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+      case 'Medium': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      case 'Low': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      default: return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Todo': return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+      case 'In Progress': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      case 'Review': return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+      case 'Done': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      default: return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full lg:h-full animate-in fade-in duration-500">
       {/* Header */}
@@ -148,12 +169,12 @@ export function TeamStatus({ user }: TeamStatusProps) {
           <p className="text-slate-400">Monitor performance, assign tasks, and manage feedback.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
             <button 
               onClick={() => setActiveTab('overview')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
                 activeTab === 'overview' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >
@@ -162,7 +183,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
             <button 
               onClick={() => setActiveTab('feedback')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 relative",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 relative flex-1 sm:flex-none whitespace-nowrap",
                 activeTab === 'feedback' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >
@@ -176,7 +197,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
           </div>
           <button 
             onClick={() => setIsAssignTaskOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] whitespace-nowrap"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] whitespace-nowrap"
           >
             <Plus className="w-4 h-4" /> Assign Task
           </button>
@@ -317,72 +338,90 @@ export function TeamStatus({ user }: TeamStatusProps) {
         </>
       ) : (
         /* Assigned Task History View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:overflow-y-auto custom-scrollbar pb-8">
+        <div className="flex flex-col gap-4 lg:overflow-y-auto custom-scrollbar pb-8">
           {tasks.filter(t => t.assignerId === user.id).map(task => (
-            <div key={task.id} className="bg-white/5 border border-white/10 rounded-[1.5rem] p-5 flex flex-col gap-4 relative overflow-hidden group">
-              {task.feedback?.status === 'Pending' && <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />}
-              
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-2 h-2 rounded-full",
-                    task.status === 'Done' ? "bg-emerald-500" :
-                    task.status === 'In Progress' ? "bg-blue-500" :
-                    "bg-slate-500"
-                  )} />
-                  <span className="text-xs font-bold text-slate-400 uppercase">{task.status}</span>
-                </div>
-                <span className="text-[10px] text-slate-500">To: {task.assigneeName}</span>
-              </div>
-
-              <div>
-                <h3 className="text-white font-bold text-sm mb-1 line-clamp-1">{task.title}</h3>
-                <p className="text-slate-400 text-xs line-clamp-2">{task.description}</p>
-                
-                {task.feedback && (
-                  <div className="p-3 bg-black/20 rounded-xl border border-white/5 mt-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" /> Feedback
-                      </span>
-                      <span className={cn(
-                        "text-[10px] font-bold uppercase",
-                        task.feedback.status === 'Pending' ? "text-amber-400" :
-                        task.feedback.status === 'Approved' ? "text-emerald-400" :
-                        "text-rose-400"
-                      )}>
-                        {task.feedback.status}
-                      </span>
-                    </div>
-                    <p className="text-slate-300 text-sm italic">"{task.feedback.message}"</p>
-                    {task.feedback.requestedDeadline && (
-                      <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-2 text-xs">
-                        <span className="text-slate-500">Requested Deadline:</span>
-                        <span className="text-blue-400 font-bold flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> {task.feedback.requestedDeadline}
-                        </span>
-                      </div>
-                    )}
+            <div key={task.id} className="bg-white/5 border border-white/10 rounded-[1.5rem] p-6 flex flex-col md:flex-row gap-6 hover:bg-white/[0.07] transition-colors group">
+               {/* Left Side: Task Info */}
+               <div className="flex-1 space-y-4">
+                  {/* Header */}
+                  <div className="flex items-start justify-between">
+                     <div>
+                        <div className="flex items-center gap-3 mb-2">
+                           <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", getStatusColor(task.status))}>
+                              {task.status}
+                           </span>
+                           <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", getPriorityColor(task.priority))}>
+                              {task.priority}
+                           </span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white">{task.title}</h3>
+                     </div>
                   </div>
-                )}
-              </div>
+                  
+                  <p className="text-slate-400 text-sm leading-relaxed">{task.description}</p>
+                  
+                  <div className="flex items-center gap-6 text-sm text-slate-500 border-t border-white/5 pt-4">
+                     <div className="flex items-center gap-2">
+                        <UserIcon className="w-4 h-4" />
+                        <span>Assigned to <span className="text-white font-medium">{task.assigneeName}</span></span>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        <span>Due: <span className={cn("font-medium", new Date(task.deadline) < new Date() ? "text-rose-400" : "text-white")}>{task.deadline}</span></span>
+                     </div>
+                  </div>
+               </div>
 
-              {task.feedback && task.feedback.status === 'Pending' && (
-                <div className="flex gap-2 mt-auto pt-4 border-t border-white/5">
-                  <button 
-                    onClick={() => handleFeedbackAction(task.id, 'Rejected')}
-                    className="flex-1 py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <XCircle className="w-3.5 h-3.5" /> Reject
-                  </button>
-                  <button 
-                    onClick={() => handleFeedbackAction(task.id, 'Approved')}
-                    className="flex-1 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                  </button>
-                </div>
-              )}
+               {/* Right Side: Feedback & Actions (if applicable) */}
+               {task.feedback && (
+                  <div className="w-full md:w-80 shrink-0 bg-black/20 rounded-2xl border border-white/5 p-4 flex flex-col">
+                     <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                           <MessageSquare className="w-3.5 h-3.5" /> Feedback
+                        </span>
+                        <span className={cn(
+                           "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                           task.feedback.status === 'Pending' ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                           task.feedback.status === 'Approved' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                           "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                        )}>
+                           {task.feedback.status}
+                        </span>
+                     </div>
+                     
+                     <div className="flex-1 space-y-3">
+                        <p className="text-sm text-slate-300 italic">"{task.feedback.message}"</p>
+                        
+                        {task.feedback.requestedDeadline && (
+                           <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold">Proposed Deadline Change</p>
+                              <div className="flex items-center gap-2 text-sm">
+                                 <span className="text-slate-400 line-through">{task.deadline}</span>
+                                 <ArrowRight className="w-3 h-3 text-slate-500" />
+                                 <span className="text-blue-400 font-bold">{task.feedback.requestedDeadline}</span>
+                              </div>
+                           </div>
+                        )}
+                     </div>
+
+                     {task.feedback.status === 'Pending' && (
+                        <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-white/5">
+                           <button 
+                              onClick={() => handleFeedbackAction(task.id, 'Rejected')}
+                              className="py-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                           >
+                              <XCircle className="w-3.5 h-3.5" /> Reject
+                           </button>
+                           <button 
+                              onClick={() => handleFeedbackAction(task.id, 'Approved')}
+                              className="py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                           >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                           </button>
+                        </div>
+                     )}
+                  </div>
+               )}
             </div>
           ))}
           {tasks.filter(t => t.assignerId === user.id).length === 0 && (

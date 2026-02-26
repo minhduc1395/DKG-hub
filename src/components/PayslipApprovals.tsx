@@ -269,12 +269,12 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
           <p className="text-slate-400">Review and authorize monthly payroll for your team.</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
             <button 
               onClick={() => setActiveView('pending')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
                 activeView === 'pending' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >
@@ -283,7 +283,7 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
             <button 
               onClick={() => setActiveView('history')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
                 activeView === 'history' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >

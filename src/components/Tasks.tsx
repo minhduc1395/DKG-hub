@@ -195,12 +195,12 @@ export function Tasks({ user }: TasksProps) {
           <p className="text-slate-400">Manage your assigned tasks and personal to-dos.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
             <button 
               onClick={() => setActiveTab('my-tasks')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
                 activeTab === 'my-tasks' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >
@@ -209,7 +209,7 @@ export function Tasks({ user }: TasksProps) {
             <button 
               onClick={() => setActiveTab('assigned')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
                 activeTab === 'assigned' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
               )}
             >

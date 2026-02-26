@@ -1,4 +1,6 @@
-import { LayoutDashboard, User as UserIcon, CalendarClock, FileText, Settings, LogOut, ClipboardList, Users, CheckSquare, Folder, TrendingUp, Calendar as CalendarIcon, CreditCard, Cpu } from 'lucide-react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { LayoutDashboard, User as UserIcon, CalendarClock, FileText, Settings, LogOut, ClipboardList, Users, CheckSquare, Folder, TrendingUp, Calendar as CalendarIcon, CreditCard, Cpu, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
 
@@ -14,6 +16,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = false, onClose }: SidebarProps) {
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const isManager = user.role === 'manager';
 
   const navItems = [
@@ -38,6 +41,15 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
     onClose?.();
   };
 
+  const handleLogoutClick = () => {
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setIsLogoutConfirmOpen(false);
+    onLogout?.();
+  };
+
   return (
     <>
       {/* Mobile Overlay */}
@@ -47,6 +59,47 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
           onClick={onClose}
         />
       )}
+
+      {/* Logout Confirmation Modal */}
+      <AnimatePresence>
+        {isLogoutConfirmOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsLogoutConfirmOpen(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[#0F1115] border border-white/10 rounded-[2rem] shadow-2xl z-[111] overflow-hidden p-6"
+            >
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20">
+                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-2">Confirm Logout</h2>
+                  <p className="text-slate-400 text-sm">Are you sure you want to log out of your account?</p>
+                </div>
+                <div className="flex items-center gap-3 w-full mt-4">
+                  <button 
+                    onClick={() => setIsLogoutConfirmOpen(false)}
+                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={confirmLogout}
+                    className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors shadow-lg shadow-red-500/20"
+                  >
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <aside className={cn(
         "fixed inset-y-0 left-0 z-[100] w-64 flex-col border-r border-white/5 bg-black/90 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:h-screen lg:bg-black/40",
@@ -134,7 +187,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
             <span className="text-sm font-semibold">Settings</span>
           </button>
           <button 
-            onClick={onLogout}
+            onClick={handleLogoutClick}
             className="flex items-center gap-3 rounded-xl px-4 py-3 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition-colors w-full"
           >
             <LogOut className="w-5 h-5" />

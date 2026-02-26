@@ -17,16 +17,16 @@ export function Attendance() {
           <h1 className="text-white text-3xl md:text-4xl font-black tracking-tight">Attendance Log</h1>
           <p className="text-blue-200/60 text-base">View your check-in and check-out history.</p>
         </div>
-        <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-xl border border-white/10">
+        <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-xl border border-white/10 w-full sm:w-auto">
           <button 
             onClick={() => alert("This feature will be updated later.")}
-            className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-bold shadow-sm"
+            className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-bold shadow-sm flex-1 sm:flex-none justify-center whitespace-nowrap"
           >
             This Month
           </button>
           <button 
             onClick={() => alert("This feature will be updated later.")}
-            className="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm font-medium transition-colors flex-1 sm:flex-none justify-center whitespace-nowrap"
           >
             Last Month
           </button>

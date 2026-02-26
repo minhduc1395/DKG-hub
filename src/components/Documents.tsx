@@ -114,7 +114,7 @@ export function Documents() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-6 border-b border-white/10">
+      <div className="flex items-center gap-6 border-b border-white/10 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1">
         {[
           { id: 'Guidelines', label: 'Guidelines', icon: Book },
           { id: 'Templates', label: 'Templates', icon: FileCode },
@@ -124,7 +124,7 @@ export function Documents() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "pb-4 text-sm font-bold transition-all flex items-center gap-2 border-b-2",
+              "pb-3 text-sm font-bold transition-all flex items-center gap-2 border-b-2 shrink-0",
               activeTab === tab.id 
                 ? "text-blue-400 border-blue-400" 
                 : "text-slate-400 border-transparent hover:text-slate-200"
