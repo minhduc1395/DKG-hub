@@ -3,6 +3,7 @@ import { Sidebar, Tab } from './components/Sidebar';
 import { Menu, Loader2 } from 'lucide-react';
 import { User } from './types';
 import { UserProvider, useUser } from './context/UserContext';
+import { supabase } from './lib/supabaseClient';
 import { Login } from './components/Login';
 import type { PayslipData } from './components/PayslipDetail';
 import { payslipService } from './services/payslipService';
@@ -22,6 +23,7 @@ const PayslipDetail = lazy(() => import('./components/PayslipDetail').then(m => 
 const PayslipHistory = lazy(() => import('./components/PayslipHistory').then(m => ({ default: m.PayslipHistory })));
 const Tasks = lazy(() => import('./components/Tasks').then(m => ({ default: m.Tasks })));
 const TeamStatus = lazy(() => import('./components/TeamStatus').then(m => ({ default: m.TeamStatus })));
+const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
 
 function LoadingFallback() {
   return (
@@ -65,6 +67,24 @@ function AppContent() {
       fetchPayslips();
     }
   }, [user, activeTab]);
+
+  // Handle Password Recovery Redirect
+  useEffect(() => {
+    if (window.location.pathname === '/update-password') {
+      setActiveTab('settings');
+      // Optional: Clean up URL to avoid staying on /update-password
+      window.history.replaceState({}, document.title, "/");
+    }
+    
+    // Listen for Supabase Password Recovery event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setActiveTab('settings');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   if (isLoading) {
     return (
@@ -171,7 +191,7 @@ function AppContent() {
                 </div>
               </div>
             )}
-            {activeTab === 'settings' && <div className="text-white">Settings Content</div>}
+            {activeTab === 'settings' && <Settings />}
             {activeTab === 'dkg-tool' && <DkgTool user={user} />}
             
             {/* Manager specific tabs */}

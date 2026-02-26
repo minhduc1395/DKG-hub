@@ -43,9 +43,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string, email: string) => {
     try {
+      // Fetch profile with nested relations
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, job_positions(title, roles(role_name))')
+        .select(`
+          *,
+          job_positions (
+            title,
+            roles (
+              role_name,
+              role_permissions (
+                features (
+                  feature_key
+                )
+              )
+            )
+          )
+        `)
         .eq('id', userId)
         .single();
 
@@ -55,13 +69,34 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        const jobPosition = data.job_positions;
-        const roleName = jobPosition?.roles?.role_name || 'staff';
+        // Log raw data for debugging
+        console.log('Raw Profile Data:', data);
+        console.log('Job Positions Raw:', data.job_positions);
+
+        // Handle potential array or object response from Supabase relations
+        const jobPosition = Array.isArray(data.job_positions) ? data.job_positions[0] : data.job_positions;
+        console.log('Processed Job Position:', jobPosition);
+
+        const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
+        console.log('Processed Role Data:', roleData);
+        
+        const rawRoleName = roleData?.role_name;
+        // Normalize role to lowercase and default to 'staff'
+        const roleName = rawRoleName ? rawRoleName.toLowerCase() : 'staff';
+        
+        console.log('Final Role Name:', roleName);
+
+        // Extract permissions
+        const permissionsList = roleData?.role_permissions || [];
+        const permissions = Array.isArray(permissionsList) 
+          ? permissionsList.map((rp: any) => rp.features?.feature_key).filter(Boolean)
+          : [];
 
         setUser({
           id: userId,
           email: email,
           role: roleName as 'staff' | 'manager',
+          permissions: permissions,
           name: data.full_name || 'Unknown',
           avatar: data.avatar_url || 'https://picsum.photos/seed/user/100/100',
           department: data.department || '',
@@ -91,6 +126,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           id: userId,
           email: email,
           role: 'staff',
+          permissions: [],
           name: email.split('@')[0],
           avatar: 'https://picsum.photos/seed/user/100/100',
           department: '',

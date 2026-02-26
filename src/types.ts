@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   role: Role;
   email: string;
+  permissions: string[];
 }
 
 export interface UserProfile {

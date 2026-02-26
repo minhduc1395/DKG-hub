@@ -9,6 +9,8 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [view, setView] = useState<'login' | 'forgot_password'>('login');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +25,29 @@ export function Login() {
 
       if (error) {
         setError(error.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccessMessage('Check your email for the password reset link');
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -208,7 +233,9 @@ export function Login() {
               <img src="https://i.postimg.cc/nr1gWnR4/Untitled_design_(3).png" alt="DKG Logo" className="w-10 h-10 md:w-16 md:h-16 object-contain relative z-10 drop-shadow-[0_5px_15px_rgba(0,0,0,0.3)]" referrerPolicy="no-referrer" />
             </div>
             <div className="text-center">
-              <h1 className="text-xl md:text-3xl font-black text-white mb-2 md:mb-4 tracking-tight drop-shadow-lg">Welcome to DKG</h1>
+              <h1 className="text-xl md:text-3xl font-black text-white mb-2 md:mb-4 tracking-tight drop-shadow-lg">
+                {view === 'login' ? 'Welcome to DKG' : 'Reset Password'}
+              </h1>
               <div className="flex flex-col gap-1 max-w-xs mx-auto">
                 <p className="text-blue-200/90 text-[10px] md:text-sm font-medium italic">"{dailyQuote.text}"</p>
                 <p className="text-blue-200/60 text-[8px] md:text-xs font-medium italic text-right">- {dailyQuote.author}</p>
@@ -216,13 +243,20 @@ export function Login() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-6">
+          <form onSubmit={view === 'login' ? handleSubmit : handleResetPassword} className="flex flex-col gap-4 md:gap-6">
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-2 text-red-400 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
+            {successMessage && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-start gap-2 text-emerald-400 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+            
             <div className="space-y-3 md:space-y-5">
               <div className="relative group">
                 <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
@@ -239,29 +273,35 @@ export function Login() {
                 />
               </div>
               
-              <div className="relative group">
-                <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
-                  <Lock className="w-4 h-4 md:w-5 md:h-5" />
+              {view === 'login' && (
+                <div className="relative group">
+                  <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
+                    <Lock className="w-4 h-4 md:w-5 md:h-5" />
+                  </div>
+                  <div className="absolute inset-0 bg-white/[0.03] rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
+                    required
+                  />
                 </div>
-                <div className="absolute inset-0 bg-white/[0.03] rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
-                  required
-                />
-              </div>
+              )}
             </div>
 
             <div className="flex justify-end">
               <button 
                 type="button" 
-                onClick={() => alert("This feature will be updated later.")}
+                onClick={() => {
+                  setView(view === 'login' ? 'forgot_password' : 'login');
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
                 className="text-[10px] md:text-xs font-medium text-blue-300/60 hover:text-blue-300 transition-colors"
               >
-                Forgot Password?
+                {view === 'login' ? 'Forgot Password?' : 'Back to Login'}
               </button>
             </div>
 
@@ -285,7 +325,7 @@ export function Login() {
                   <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
                 ) : (
                   <>
-                    LOGIN
+                    {view === 'login' ? 'LOGIN' : 'SEND RESET LINK'}
                     <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform duration-300" />
                   </>
                 )}
