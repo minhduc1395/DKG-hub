@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #2563eb;
+  --color-primary-light: #93c5fd;
+  --color-primary-dark: #1e40af;
+  --color-background-dark: #020617;
+  --color-surface-dark: rgba(255, 255, 255, 0.05);
+}
+
+body {
+  @apply bg-background-dark text-white font-sans antialiased selection:bg-blue-500/30 selection:text-blue-200;
+  background-image: linear-gradient(to bottom right, #0f172a, #020617, #000000);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.stars-pattern {
+  background-image: 
+    radial-gradient(circle at 20px 30px, white 1px, transparent 1.5px),
+    radial-gradient(circle at 40px 70px, white 1px, transparent 1.5px),
+    radial-gradient(circle at 50px 160px, white 1px, transparent 1.5px),
+    radial-gradient(circle at 90px 40px, white 1.5px, transparent 2px),
+    radial-gradient(circle at 130px 80px, white 1px, transparent 1.5px),
+    radial-gradient(circle at 160px 120px, white 1.5px, transparent 2px);
+  background-size: 200px 200px;
+  background-repeat: repeat;
+}
+
+/* Hide default date placeholder in Chrome/Safari */
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  color: transparent;
+}
+
+input[type="date"]:focus::-webkit-datetime-edit-text,
+input[type="date"]:focus::-webkit-datetime-edit-month-field,
+input[type="date"]:focus::-webkit-datetime-edit-day-field,
+input[type="date"]:focus::-webkit-datetime-edit-year-field,
+input[type="date"]:valid::-webkit-datetime-edit-text,
+input[type="date"]:valid::-webkit-datetime-edit-month-field,
+input[type="date"]:valid::-webkit-datetime-edit-day-field,
+input[type="date"]:valid::-webkit-datetime-edit-year-field {
+  color: inherit;
+}
