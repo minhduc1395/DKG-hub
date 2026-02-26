@@ -18,7 +18,6 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'profile', label: 'My Profile', icon: UserIcon },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
     { id: 'timeoff', label: 'Time Off', icon: CalendarClock },
@@ -54,18 +53,22 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
         isOpen ? "translate-x-0 flex" : "-translate-x-full hidden lg:flex"
       )}>
         <div className="px-4 py-6">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-[1.25rem] bg-white/5 border border-white/10 shadow-lg shadow-black/20">
+          <button 
+            type="button"
+            onClick={() => handleTabClick('profile')}
+            className="flex items-center gap-3 px-4 py-3 rounded-[1.25rem] bg-white/5 border border-white/10 shadow-lg shadow-black/20 w-full hover:bg-white/10 transition-colors text-left group cursor-pointer"
+          >
             <img 
               src={user.avatar} 
               alt={user.name} 
-              className="rounded-full h-10 w-10 border-2 border-white/20 object-cover"
+              className="rounded-full h-10 w-10 border-2 border-white/20 object-cover group-hover:border-white/40 transition-colors"
               referrerPolicy="no-referrer"
             />
             <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-bold text-white truncate">{user.name}</span>
+              <span className="text-sm font-bold text-white truncate group-hover:text-blue-300 transition-colors">{user.name}</span>
               <span className="text-xs text-slate-400 truncate capitalize">{user.role}</span>
             </div>
-          </div>
+          </button>
         </div>
         
         <nav className="flex flex-1 flex-col gap-2 px-4 overflow-y-auto pt-2">

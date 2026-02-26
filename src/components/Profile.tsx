@@ -19,6 +19,11 @@ export function Profile({ user, onUpdate }: ProfileProps) {
     setHasChanges(isDirty);
   }, [formData, user]);
 
+  // Update formData when user prop changes (e.g. switching roles)
+  useEffect(() => {
+    setFormData(user);
+  }, [user]);
+
   const handleChange = (field: keyof User, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };

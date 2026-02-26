@@ -86,8 +86,15 @@ interface TasksProps {
   user: User;
 }
 
+const mockEmployees = [
+  { id: '1', name: 'Alex Morgan', role: 'Senior Designer' },
+  { id: '2', name: 'Sarah Jenkins', role: 'Manager' },
+  { id: '3', name: 'John Doe', role: 'Frontend Dev' },
+  { id: '4', name: 'Emily Chen', role: 'Content Strategist' },
+];
+
 export function Tasks({ user }: TasksProps) {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks.filter(t => t.assigneeId === user.id));
+  const [tasks, setTasks] = useState<Task[]>(mockTasks.filter(t => t.assigneeId === user.id || t.assignerId === user.id));
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -100,18 +107,21 @@ export function Tasks({ user }: TasksProps) {
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
+    assigneeId: user.id,
     priority: 'Medium' as Task['priority'],
     deadline: ''
   });
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
+    const assignee = mockEmployees.find(e => e.id === newTask.assigneeId) || { name: user.name };
+
     const task: Task = {
       id: `t-${Date.now()}`,
       title: newTask.title,
       description: newTask.description,
-      assigneeId: user.id,
-      assigneeName: user.name,
+      assigneeId: newTask.assigneeId,
+      assigneeName: assignee.name,
       assignerId: user.id,
       assignerName: user.name,
       status: 'Todo',
@@ -121,7 +131,7 @@ export function Tasks({ user }: TasksProps) {
     };
     setTasks([task, ...tasks]);
     setIsNewTaskOpen(false);
-    setNewTask({ title: '', description: '', priority: 'Medium', deadline: '' });
+    setNewTask({ title: '', description: '', assigneeId: user.id, priority: 'Medium', deadline: '' });
   };
 
   const handleSubmitFeedback = (e: React.FormEvent) => {
@@ -289,6 +299,27 @@ export function Tasks({ user }: TasksProps) {
             <div>
               <h3 className="text-white font-bold text-lg leading-tight mb-1">{task.title}</h3>
               <p className="text-slate-400 text-sm line-clamp-2">{task.description}</p>
+              
+              {activeTab === 'my-tasks' && (
+                 <div className="mt-3 flex items-center gap-2 text-xs">
+                    <span className="text-slate-500">Assigned to:</span>
+                    <div className="relative">
+                        <select
+                            value={task.assigneeId}
+                            onChange={(e) => {
+                                const newAssignee = mockEmployees.find(emp => emp.id === e.target.value) || { name: user.name };
+                                setTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigneeId: e.target.value, assigneeName: newAssignee.name } : t));
+                            }}
+                            className="appearance-none bg-transparent font-bold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer focus:outline-none [color-scheme:dark]"
+                        >
+                            <option value={user.id} className="bg-[#1A1D24]">Me</option>
+                            {mockEmployees.filter(e => e.id !== user.id).map(emp => (
+                                <option key={emp.id} value={emp.id} className="bg-[#1A1D24]">{emp.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                 </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
@@ -364,6 +395,19 @@ export function Tasks({ user }: TasksProps) {
               </div>
               <form onSubmit={handleCreateTask} className="p-6 space-y-5">
                 <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase">Assign To</label>
+                  <select 
+                    value={newTask.assigneeId} 
+                    onChange={e => setNewTask({...newTask, assigneeId: e.target.value})} 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none [color-scheme:dark]"
+                  >
+                    <option value={user.id} className="bg-[#0F1115] text-white">Me ({user.name})</option>
+                    {mockEmployees.filter(e => e.id !== user.id).map(emp => (
+                      <option key={emp.id} value={emp.id} className="bg-[#0F1115] text-white">{emp.name} ({emp.role})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Task Title</label>
                   <input required type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. Prepare weekly report" />
                 </div>
@@ -382,7 +426,16 @@ export function Tasks({ user }: TasksProps) {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase">Deadline</label>
-                    <input required type="date" value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="Select deadline..."
+                      onFocus={(e) => (e.target.type = "date")}
+                      onBlur={(e) => { if (!e.target.value) e.target.type = "text"; }}
+                      value={newTask.deadline} 
+                      onChange={e => setNewTask({...newTask, deadline: e.target.value})} 
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" 
+                    />
                   </div>
                 </div>
                 <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)]">
@@ -429,7 +482,15 @@ export function Tasks({ user }: TasksProps) {
                 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Request New Deadline (Optional)</label>
-                  <input type="date" value={requestedDeadline} onChange={e => setRequestedDeadline(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" />
+                  <input 
+                    type="text" 
+                    placeholder="Select new deadline..."
+                    onFocus={(e) => (e.target.type = "date")}
+                    onBlur={(e) => { if (!e.target.value) e.target.type = "text"; }}
+                    value={requestedDeadline} 
+                    onChange={e => setRequestedDeadline(e.target.value)} 
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" 
+                  />
                 </div>
 
                 <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] flex items-center justify-center gap-2">
