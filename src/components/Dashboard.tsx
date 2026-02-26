@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { FileText, ArrowRight, Bell, Calendar as CalendarIcon, File, TrendingUp, CreditCard, Newspaper, Gift, MessageSquare, Users, CheckSquare, UserPlus, Info, AlertCircle } from 'lucide-react';
+import { FileText, ArrowRight, Bell, Calendar as CalendarIcon, File, TrendingUp, CreditCard, Newspaper, Gift, MessageSquare, Users, CheckSquare, ClipboardList, Info, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import { NewsModal, NotificationsModal, NewsItem, NotificationItem } from './DashboardModals';
 
@@ -134,11 +134,19 @@ const notifications: NotificationItem[] = [
   }
 ];
 
-const quickActions = [
-  { id: 1, label: 'Request Time Off', icon: CalendarIcon, iconBg: 'bg-indigo-500/20', iconColor: 'text-indigo-400' },
-  { id: 2, label: 'View Payslips', icon: CreditCard, iconBg: 'bg-emerald-500/20', iconColor: 'text-emerald-400' },
-  { id: 3, label: 'My Documents', icon: File, iconBg: 'bg-sky-500/20', iconColor: 'text-sky-400' },
-  { id: 4, label: 'Company Finance', icon: TrendingUp, iconBg: 'bg-blue-600/20', iconColor: 'text-blue-400' },
+const staffQuickActions = [
+  { id: 'request-time-off', label: 'Request Time Off', icon: CalendarIcon, iconBg: 'bg-indigo-500/20', iconColor: 'text-indigo-400' },
+  { id: 'payslip', label: 'View Payslips', icon: CreditCard, iconBg: 'bg-emerald-500/20', iconColor: 'text-emerald-400' },
+  { id: 'documents', label: 'My Documents', icon: File, iconBg: 'bg-sky-500/20', iconColor: 'text-sky-400' },
+  { id: 'tasks', label: 'Tasks', icon: CheckSquare, iconBg: 'bg-blue-600/20', iconColor: 'text-blue-400' },
+];
+
+const managerQuickActions = [
+  { id: 'approvals', label: 'Leave Approvals', icon: CheckSquare, iconBg: 'bg-indigo-500/20', iconColor: 'text-indigo-400' },
+  { id: 'payslip-approvals', label: 'Payslip Approvals', icon: ClipboardList, iconBg: 'bg-emerald-500/20', iconColor: 'text-emerald-400' },
+  { id: 'team-status', label: 'Team Status', icon: Users, iconBg: 'bg-teal-500/20', iconColor: 'text-teal-400' },
+  { id: 'documents', label: 'My Documents', icon: File, iconBg: 'bg-sky-500/20', iconColor: 'text-sky-400' },
+  { id: 'finance', label: 'Company Finance', icon: TrendingUp, iconBg: 'bg-blue-600/20', iconColor: 'text-blue-400' },
 ];
 
 interface DashboardProps {
@@ -194,14 +202,7 @@ export function Dashboard({ user, onAction }: DashboardProps) {
     return true;
   });
 
-  const displayQuickActions = isManager
-    ? [
-        ...quickActions,
-        { id: 5, label: 'Review Pending', icon: CheckSquare, iconBg: 'bg-teal-500/20', iconColor: 'text-teal-400' }
-      ]
-    : [
-        ...quickActions.map(a => a.id === 4 ? { ...a, label: 'Register Form', icon: UserPlus } : a)
-      ];
+  const displayQuickActions = isManager ? managerQuickActions : staffQuickActions;
 
   return (
     <>
@@ -225,62 +226,8 @@ export function Dashboard({ user, onAction }: DashboardProps) {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Company News */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="lg:col-span-2 relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2 text-blue-300">
-                <Newspaper className="w-5 h-5" />
-                <span className="text-sm font-bold uppercase tracking-wider">What's new today?</span>
-              </div>
-              <button 
-                onClick={() => setShowAllNews(true)}
-                className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-              >
-                See all
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="flex flex-col gap-4">
-              {announcements.slice(0, 3).map((item) => (
-                <div 
-                  key={item.id} 
-                  onClick={() => alert("This feature will be updated later.")}
-                  className="p-5 rounded-2xl border border-white/5 hover:bg-white/5 transition-all group cursor-pointer"
-                >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 uppercase tracking-wide">
-                        {item.type}
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white group-hover:text-blue-300 transition-colors leading-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      {item.desc}
-                    </p>
-                    {item.file && (
-                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
-                        <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
-                          <FileText className="w-3 h-3 text-slate-300" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400">{item.file}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Notifications & Team Status */}
-          <div className="lg:col-span-1 flex flex-col gap-6">
+          {/* Notifications & Team Status - Moved to top on mobile */}
+          <div className="order-1 lg:order-2 lg:col-span-1 flex flex-col gap-6">
             {isManager && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -403,6 +350,60 @@ export function Dashboard({ user, onAction }: DashboardProps) {
               </div>
             </motion.div>
           </div>
+
+          {/* Company News - Moved to bottom on mobile */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="order-2 lg:order-1 lg:col-span-2 relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2 text-blue-300">
+                <Newspaper className="w-5 h-5" />
+                <span className="text-sm font-bold uppercase tracking-wider">What's new today?</span>
+              </div>
+              <button 
+                onClick={() => setShowAllNews(true)}
+                className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+              >
+                See all
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-4">
+              {announcements.slice(0, 3).map((item) => (
+                <div 
+                  key={item.id} 
+                  onClick={() => alert("This feature will be updated later.")}
+                  className="p-5 rounded-2xl border border-white/5 hover:bg-white/5 transition-all group cursor-pointer"
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 uppercase tracking-wide">
+                        {item.type}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-white group-hover:text-blue-300 transition-colors leading-tight">
+                      {item.title}
+                    </h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      {item.desc}
+                    </p>
+                    {item.file && (
+                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
+                        <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
+                          <FileText className="w-3 h-3 text-slate-300" />
+                        </div>
+                        <span className="text-xs font-medium text-slate-400">{item.file}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
         </div>
 
         {/* Quick Actions */}
@@ -416,16 +417,8 @@ export function Dashboard({ user, onAction }: DashboardProps) {
             <button 
               key={action.id} 
               onClick={() => {
-                if (action.id === 1) {
-                  onAction?.('request-time-off');
-                } else if (action.id === 2) {
-                  onAction?.('payslip');
-                } else if (action.id === 4) {
-                  onAction?.('finance');
-                } else if (action.id === 5) {
-                  onAction?.('approvals');
-                } else {
-                  alert("This feature will be updated later.");
+                if (action.id) {
+                  onAction?.(action.id);
                 }
               }}
               className="flex flex-col items-center justify-center gap-4 p-8 rounded-[2rem] bg-white/5 border border-white/5 hover:border-blue-500/30 hover:bg-white/10 transition-all group"

@@ -22,10 +22,11 @@ export interface PayslipData {
 
 interface PayslipDetailProps {
   data: PayslipData;
-  onBack?: () => void;
+  onBack?: () => void; // Used for "History" button
+  onClose?: () => void; // Used for "Back" arrow
 }
 
-export function PayslipDetail({ data, onBack }: PayslipDetailProps) {
+export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
   // Logic: Grouping data as requested
   const totalInsurance = data.insurance.bhxh + data.insurance.bhyt + data.insurance.bhtn;
   const bonusAndPerformance = data.performanceBonus + data.yearlyBonus;
@@ -44,7 +45,7 @@ export function PayslipDetail({ data, onBack }: PayslipDetailProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-2">
         <button 
-          onClick={onBack}
+          onClick={onClose || onBack}
           className="p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -154,7 +155,10 @@ export function PayslipDetail({ data, onBack }: PayslipDetailProps) {
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-4 px-2">
-        <button className="py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-bold text-sm transition-all active:scale-95">
+        <button 
+          onClick={onBack}
+          className="py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-bold text-sm transition-all active:scale-95"
+        >
           History
         </button>
         <button className="py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-600/20 transition-all active:scale-95">

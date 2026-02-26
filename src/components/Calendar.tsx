@@ -108,7 +108,7 @@ export function Calendar({ user }: CalendarProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full h-full animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full lg:h-full animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-white text-3xl font-black tracking-tight">Calendar</h1>
@@ -137,32 +137,9 @@ export function Calendar({ user }: CalendarProps) {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0">
-        {/* Main Calendar Section */}
-        <div className="lg:col-span-3 flex flex-col">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl shadow-black/40"
-          >
-            {/* Weekday Headers */}
-            <div className="grid grid-cols-7 border-b border-white/10 bg-white/5">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 flex-1 overflow-y-auto">
-              {renderCalendarDays()}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Sidebar Section */}
-        <div className="lg:col-span-1 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:flex-1 min-h-0">
+        {/* Sidebar Section - Shown first on mobile to ensure visibility */}
+        <div className="order-1 lg:order-2 lg:col-span-1 flex flex-col gap-6 lg:overflow-y-auto lg:pr-2 custom-scrollbar">
           {/* Upcoming Events */}
           <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -236,6 +213,29 @@ export function Calendar({ user }: CalendarProps) {
               "Team availability is synced with approved leave requests. Use the Time Off module to submit new requests."
             </p>
           </div>
+        </div>
+
+        {/* Main Calendar Section */}
+        <div className="order-2 lg:order-1 lg:col-span-3 flex flex-col">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl shadow-black/40"
+          >
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-7 border-b border-white/10 bg-white/5">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <div key={day} className="py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 flex-1 overflow-y-auto">
+              {renderCalendarDays()}
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>

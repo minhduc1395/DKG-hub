@@ -16,10 +16,13 @@ import {
   ArrowRight,
   FileText,
   DollarSign,
-  CalendarClock
+  CalendarClock,
+  User as UserIcon
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
+import { PayslipDetail, PayslipData } from './PayslipDetail';
+import { PayslipHistory } from './PayslipHistory';
 
 interface PayslipRequest {
   id: string;
@@ -102,6 +105,8 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<'pending' | 'history'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPayslip, setSelectedPayslip] = useState<PayslipData | null>(null);
+  const [viewingHistoryFor, setViewingHistoryFor] = useState<PayslipRequest | null>(null);
 
   const handleSelectAll = () => {
     if (selectedIds.length === pendingRequests.length) {
@@ -149,6 +154,111 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
     r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.employeeId.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleViewDetails = (request: PayslipRequest) => {
+    // Create mock detailed data based on the request
+    const detailData: PayslipData = {
+      id: request.id,
+      month: request.month,
+      year: request.year,
+      baseSalary: Math.round(request.netSalary * 0.85),
+      otAmount: Math.round(request.netSalary * 0.05),
+      performanceBonus: Math.round(request.netSalary * 0.1),
+      yearlyBonus: 0,
+      allowances: [
+        { name: 'Meal Allowance', amount: 750000 },
+        { name: 'Transport', amount: 500000 }
+      ],
+      insurance: {
+        bhxh: Math.round(request.netSalary * 0.08),
+        bhyt: Math.round(request.netSalary * 0.015),
+        bhtn: Math.round(request.netSalary * 0.01)
+      },
+      tax: Math.round(request.netSalary * 0.05),
+      otherDeductions: 0
+    };
+    setSelectedPayslip(detailData);
+    // Do NOT set viewingHistoryFor here. It should only be set when "History" is clicked from detail view.
+    // We store the current request temporarily to know who we are viewing if history is requested.
+    setViewingHistoryFor(request); 
+  };
+
+  const handleViewHistory = () => {
+    // Switch from detail view to history view for the current employee
+    setSelectedPayslip(null);
+    // viewingHistoryFor is already set from handleViewDetails
+  };
+
+  const handleBackToApprovals = () => {
+    setSelectedPayslip(null);
+    setViewingHistoryFor(null);
+  };
+
+  if (selectedPayslip) {
+    return (
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+        <PayslipDetail 
+          data={selectedPayslip} 
+          onBack={handleViewHistory}
+          onClose={handleBackToApprovals}
+        />
+      </div>
+    );
+  }
+
+  if (viewingHistoryFor) {
+    // Generate mock history for this specific employee
+    const employeeHistory: PayslipData[] = [
+      {
+        id: viewingHistoryFor.id, // Current one
+        month: viewingHistoryFor.month,
+        year: viewingHistoryFor.year,
+        baseSalary: Math.round(viewingHistoryFor.netSalary * 0.85),
+        otAmount: Math.round(viewingHistoryFor.netSalary * 0.05),
+        performanceBonus: Math.round(viewingHistoryFor.netSalary * 0.1),
+        yearlyBonus: 0,
+        allowances: [{ name: 'Meal Allowance', amount: 750000 }, { name: 'Transport', amount: 500000 }],
+        insurance: { bhxh: Math.round(viewingHistoryFor.netSalary * 0.08), bhyt: Math.round(viewingHistoryFor.netSalary * 0.015), bhtn: Math.round(viewingHistoryFor.netSalary * 0.01) },
+        tax: Math.round(viewingHistoryFor.netSalary * 0.05),
+        otherDeductions: 0
+      },
+      // Previous month mock
+      {
+        id: 'PR-PREV-1',
+        month: 'September',
+        year: 2023,
+        baseSalary: Math.round(viewingHistoryFor.netSalary * 0.85),
+        otAmount: 0,
+        performanceBonus: 0,
+        yearlyBonus: 0,
+        allowances: [{ name: 'Meal Allowance', amount: 750000 }, { name: 'Transport', amount: 500000 }],
+        insurance: { bhxh: Math.round(viewingHistoryFor.netSalary * 0.08), bhyt: Math.round(viewingHistoryFor.netSalary * 0.015), bhtn: Math.round(viewingHistoryFor.netSalary * 0.01) },
+        tax: Math.round(viewingHistoryFor.netSalary * 0.04),
+        otherDeductions: 0
+      }
+    ];
+
+    return (
+      <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+        <div className="flex items-center gap-4 mb-4">
+           <button 
+            onClick={handleBackToApprovals}
+            className="p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors"
+          >
+            <ChevronRight className="w-6 h-6 rotate-180" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Payslip History</h1>
+            <p className="text-slate-400 text-sm">Viewing history for <span className="text-blue-400 font-bold">{viewingHistoryFor.employeeName}</span></p>
+          </div>
+        </div>
+        <PayslipHistory 
+          history={employeeHistory} 
+          onSelect={(payslip) => setSelectedPayslip(payslip)} 
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full lg:h-full animate-in fade-in duration-500">
@@ -293,10 +403,18 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                       </td>
                     )}
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <img src={request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10" />
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer group/emp"
+                        onClick={() => handleViewDetails(request)}
+                      >
+                        <div className="relative">
+                          <img src={request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" />
+                          <div className="absolute inset-0 bg-blue-500/20 rounded-full opacity-0 group-hover/emp:opacity-100 transition-opacity flex items-center justify-center">
+                            <Eye className="w-4 h-4 text-white" />
+                          </div>
+                        </div>
                         <div className="flex flex-col">
-                          <span className="font-bold text-white">{request.employeeName}</span>
+                          <span className="font-bold text-white group-hover/emp:text-blue-400 transition-colors">{request.employeeName}</span>
                           <span className="text-[10px] text-slate-500">{request.employeeId} • {request.department}</span>
                         </div>
                       </div>
@@ -317,7 +435,11 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="View Details">
+                        <button 
+                          onClick={() => handleViewDetails(request)}
+                          className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" 
+                          title="View Details"
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
                         {activeView === 'pending' && (

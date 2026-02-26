@@ -1,111 +1,19 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, FileText, FileImage, FileCode, Download, Eye, MoreVertical, Folder, Clock, Upload, CheckSquare, X, CheckCircle, XCircle, Book, FileSignature, AlertCircle, File as FileIcon } from 'lucide-react';
-import { User } from '../types';
+import { Document, DocumentWithHistory } from '../types';
 import { cn } from '../lib/utils';
-
-interface DocumentHistory {
-  id: string;
-  action: string;
-  user: string;
-  timestamp: string;
-}
-
-interface Document {
-  id: string;
-  title: string;
-  category_type: 'Guideline' | 'Template' | 'Contract';
-  department: string;
-  type: 'pdf' | 'image' | 'doc' | 'sheet';
-  size: string;
-  updatedAt: string;
-  author: string;
-  tags: string[];
-  version: string;
-  url: string;
-  drive_folder_id?: string;
-  history: DocumentHistory[];
-}
-
-const mockDocuments: Document[] = [
-  {
-    id: '1',
-    title: 'Employee Handbook 2024.pdf',
-    category_type: 'Guideline',
-    department: 'HR',
-    type: 'pdf',
-    size: '2.4 MB',
-    updatedAt: '2 hours ago',
-    author: 'HR Dept',
-    tags: ['Policy', 'HR'],
-    version: 'v2.0',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    drive_folder_id: 'gdrive_guideline_hr',
-    history: [{ id: 'h1', action: 'Uploaded', user: 'HR Dept', timestamp: '2 hours ago' }]
-  },
-  {
-    id: '2',
-    title: 'Vendor Contract Template.doc',
-    category_type: 'Template',
-    department: 'Legal',
-    type: 'doc',
-    size: '45 KB',
-    updatedAt: '1 month ago',
-    author: 'Legal Team',
-    tags: ['Template', 'Vendor'],
-    version: 'v1.1',
-    url: '#',
-    drive_folder_id: 'gdrive_template_legal',
-    history: [{ id: 'h2', action: 'Uploaded', user: 'Legal Team', timestamp: '1 month ago' }]
-  },
-  {
-    id: '3',
-    title: 'Tech Summit Venue Agreement.pdf',
-    category_type: 'Contract',
-    department: 'Event',
-    type: 'pdf',
-    size: '1.5 MB',
-    updatedAt: '1 day ago',
-    author: 'Alex Morgan',
-    tags: ['Contract', 'TechSummit'],
-    version: 'v1.0',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    drive_folder_id: 'gdrive_contract_event',
-    history: [
-      { id: 'h3', action: 'Uploaded', user: 'Alex Morgan', timestamp: '1 day ago' }
-    ]
-  },
-  {
-    id: '4',
-    title: 'Q4 Marketing Agency NDA.pdf',
-    category_type: 'Contract',
-    department: 'Marketing',
-    type: 'pdf',
-    size: '800 KB',
-    updatedAt: '3 days ago',
-    author: 'Alex Morgan',
-    tags: ['NDA', 'Marketing'],
-    version: 'v1.0',
-    url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    drive_folder_id: 'gdrive_contract_marketing',
-    history: [
-      { id: 'h4', action: 'Uploaded', user: 'Alex Morgan', timestamp: '4 days ago' }
-    ]
-  }
-];
+import { useUser } from '../context/UserContext';
+import { useDocuments } from '../hooks/useDocuments';
 
 const departments = ['HR', 'Event', 'Marketing', 'Finance', 'Legal'];
-const usersList = ['Sarah Jenkins', 'John Doe', 'System Admin'];
 
-interface DocumentsProps {
-  user: User;
-}
-
-export function Documents({ user }: DocumentsProps) {
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+export function Documents() {
+  const { user } = useUser();
+  const { documents, isLoading, addDocument } = useDocuments();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'Guidelines' | 'Templates' | 'Contracts'>('Guidelines');
-  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<DocumentWithHistory | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   // Upload Form State
@@ -135,6 +43,7 @@ export function Documents({ user }: DocumentsProps) {
 
   const handleUploadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     
     const newDoc: Document = {
       id: `doc-${Date.now()}`,
@@ -149,15 +58,14 @@ export function Documents({ user }: DocumentsProps) {
       version: 'v1.0',
       url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
       drive_folder_id: `gdrive_${uploadForm.category_type.toLowerCase()}_${uploadForm.department.toLowerCase()}`,
-      history: [{
-        id: `h-${Date.now()}`,
-        action: 'Uploaded',
-        user: user.name,
-        timestamp: 'Just now'
-      }]
     };
 
-    setDocuments([newDoc, ...documents]);
+    addDocument(newDoc, {
+      action: 'Uploaded',
+      user: user.name,
+      timestamp: 'Just now'
+    });
+
     setIsUploadOpen(false);
     setUploadForm({ title: '', category_type: 'Guideline', department: 'Event' });
   };
