@@ -75,10 +75,14 @@ export function Tasks({ user }: TasksProps) {
       // Fetch employees for assignment dropdown
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name, role');
+        .select('id, full_name, job_positions(roles(role_name))');
       
       if (profilesError) throw profilesError;
-      setEmployees(profilesData || []);
+      setEmployees((profilesData || []).map((p: any) => ({
+        id: p.id,
+        name: p.full_name || 'Unknown',
+        role: p.job_positions?.roles?.role_name || 'staff'
+      })));
 
       // Fetch tasks where user is assignee or assigner
       const { data: tasksData, error: tasksError } = await supabase
@@ -92,13 +96,13 @@ export function Tasks({ user }: TasksProps) {
           status,
           priority,
           deadline,
-          created_at,
-          feedback,
-          assignee:assignee_id(name),
-          assigner:assigner_id(name)
+          feedback_message,
+          feedback_status,
+          assignee:assignee_id(full_name),
+          assigner:assigner_id(full_name)
         `)
         .or(`assignee_id.eq.${user.id},assigner_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+        .order('deadline', { ascending: true });
 
       if (tasksError) throw tasksError;
 
@@ -107,14 +111,17 @@ export function Tasks({ user }: TasksProps) {
         title: t.title,
         description: t.description,
         assigneeId: t.assignee_id,
-        assigneeName: t.assignee?.name || 'Unknown',
+        assigneeName: t.assignee?.full_name || 'Unknown',
         assignerId: t.assigner_id,
-        assignerName: t.assigner?.name || 'Unknown',
+        assignerName: t.assigner?.full_name || 'Unknown',
         status: t.status,
         priority: t.priority,
         deadline: t.deadline,
-        createdAt: t.created_at,
-        feedback: t.feedback
+        createdAt: new Date().toISOString(), // Fallback since DB doesn't have created_at
+        feedback: t.feedback_message ? {
+          message: t.feedback_message,
+          status: t.feedback_status || 'Pending'
+        } : undefined
       }));
 
       setTasks(formattedTasks);
@@ -206,7 +213,10 @@ export function Tasks({ user }: TasksProps) {
     try {
       const { error } = await supabase
         .from('tasks')
-        .update({ feedback: newFeedback })
+        .update({ 
+          feedback_message: newFeedback.message,
+          feedback_status: newFeedback.status
+        })
         .eq('id', taskIdToUpdate);
 
       if (error) throw error;

@@ -45,7 +45,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, job_positions(title, roles(role_name))')
         .eq('id', userId)
         .single();
 
@@ -55,18 +55,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
+        const jobPosition = data.job_positions;
+        const roleName = jobPosition?.roles?.role_name || 'staff';
+
         setUser({
           id: userId,
           email: email,
-          role: data.role || 'staff',
-          name: data.name || 'Unknown',
-          avatar: data.avatar || 'https://picsum.photos/seed/user/100/100',
+          role: roleName as 'staff' | 'manager',
+          name: data.full_name || 'Unknown',
+          avatar: data.avatar_url || 'https://picsum.photos/seed/user/100/100',
           department: data.department || '',
           manager_id: data.manager_id,
           employeeId: data.employee_id,
           dob: data.dob,
           gender: data.gender,
-          position: data.position,
+          position: jobPosition?.title,
           joiningDate: data.joining_date,
           contractType: data.contract_type,
           lineManager: data.line_manager,

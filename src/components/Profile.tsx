@@ -34,8 +34,8 @@ export function Profile({ user, onUpdate }: ProfileProps) {
     setIsSaving(true);
     try {
       const updates = {
-        name: formData.name,
-        avatar: formData.avatar,
+        full_name: formData.name,
+        avatar_url: formData.avatar,
         department: formData.department,
         personal_email: formData.personalEmail,
         phone: formData.phone,
