@@ -195,7 +195,7 @@ export function Documents() {
               {filteredDocs.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    No documents found in this section.
+                    No data available.
                   </td>
                 </tr>
               )}

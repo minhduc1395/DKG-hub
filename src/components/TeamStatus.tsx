@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, 
@@ -16,75 +16,27 @@ import {
   UserCheck,
   UserX,
   ArrowRight,
-  User as UserIcon
+  User as UserIcon,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
-import { Task, mockTasks } from './Tasks';
-
-interface EmployeePerformance {
-  id: string;
-  name: string;
-  avatar: string;
-  department: string;
-  role: string;
-  tasksCompleted: number;
-  tasksPending: number;
-  tasksOverdue: number;
-  lateDays: number;
-  attendanceRate: number;
-}
-
-const mockTeam: EmployeePerformance[] = [
-  {
-    id: '1',
-    name: 'Alex Morgan',
-    avatar: 'https://picsum.photos/seed/alex/100/100',
-    department: 'Product Design',
-    role: 'Senior Designer',
-    tasksCompleted: 45,
-    tasksPending: 3,
-    tasksOverdue: 1,
-    lateDays: 2,
-    attendanceRate: 95
-  },
-  {
-    id: '3',
-    name: 'John Doe',
-    avatar: 'https://picsum.photos/seed/john/100/100',
-    department: 'Engineering',
-    role: 'Frontend Dev',
-    tasksCompleted: 62,
-    tasksPending: 5,
-    tasksOverdue: 0,
-    lateDays: 0,
-    attendanceRate: 100
-  },
-  {
-    id: '4',
-    name: 'Emily Chen',
-    avatar: 'https://picsum.photos/seed/emily/100/100',
-    department: 'Marketing',
-    role: 'Content Strategist',
-    tasksCompleted: 28,
-    tasksPending: 8,
-    tasksOverdue: 3,
-    lateDays: 5,
-    attendanceRate: 88
-  }
-];
+import { Task } from './Tasks';
+import { teamService, EmployeePerformance } from '../services/teamService';
+import { supabase } from '../lib/supabaseClient';
 
 interface TeamStatusProps {
   user: User;
 }
 
 export function TeamStatus({ user }: TeamStatusProps) {
-  const [team, setTeam] = useState<EmployeePerformance[]>(mockTeam);
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
+  const [team, setTeam] = useState<EmployeePerformance[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'feedback'>('overview');
+  const [loading, setLoading] = useState(true);
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -94,40 +46,138 @@ export function TeamStatus({ user }: TeamStatusProps) {
     deadline: ''
   });
 
-  const handleAssignTask = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchData();
+  }, [user.id]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [teamData, { data: tasksData }] = await Promise.all([
+        teamService.getTeamPerformance(),
+        supabase
+          .from('tasks')
+          .select(`
+            *,
+            assignee:assignee_id(name),
+            assigner:assigner_id(name)
+          `)
+          .eq('assigner_id', user.id)
+          .order('created_at', { ascending: false })
+      ]);
+
+      setTeam(teamData);
+      
+      if (tasksData) {
+        const formattedTasks: Task[] = tasksData.map(t => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          assigneeId: t.assignee_id,
+          assigneeName: t.assignee?.name || 'Unknown',
+          assignerId: t.assigner_id,
+          assignerName: t.assigner?.name || 'Unknown',
+          status: t.status,
+          priority: t.priority,
+          deadline: t.deadline,
+          createdAt: t.created_at,
+          feedback: t.feedback
+        }));
+        setTasks(formattedTasks);
+      }
+    } catch (error) {
+      console.error("Error fetching team status data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignTask = async (e: React.FormEvent) => {
     e.preventDefault();
     const assignee = team.find(t => t.id === newTask.assigneeId);
     if (!assignee) return;
 
-    const task: Task = {
-      id: `t-${Date.now()}`,
+    const newTaskData = {
       title: newTask.title,
       description: newTask.description,
-      assigneeId: assignee.id,
-      assigneeName: assignee.name,
-      assignerId: user.id,
-      assignerName: user.name,
+      assignee_id: assignee.id,
+      assigner_id: user.id,
       status: 'Todo',
       priority: newTask.priority,
       deadline: newTask.deadline,
-      createdAt: new Date().toISOString().split('T')[0]
+      created_at: new Date().toISOString()
     };
-    
-    setTasks([task, ...tasks]);
-    setIsAssignTaskOpen(false);
-    setNewTask({ title: '', description: '', assigneeId: '', priority: 'Medium', deadline: '' });
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert([newTaskData])
+      .select(`
+        *,
+        assignee:assignee_id(name),
+        assigner:assigner_id(name)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error creating task:", error);
+      return;
+    }
+
+    if (data) {
+      const task: Task = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        assigneeId: data.assignee_id,
+        assigneeName: data.assignee?.name || 'Unknown',
+        assignerId: data.assigner_id,
+        assignerName: data.assigner?.name || 'Unknown',
+        status: data.status,
+        priority: data.priority,
+        deadline: data.deadline,
+        createdAt: data.created_at,
+        feedback: data.feedback
+      };
+      
+      setTasks([task, ...tasks]);
+      setIsAssignTaskOpen(false);
+      setNewTask({ title: '', description: '', assigneeId: '', priority: 'Medium', deadline: '' });
+    }
   };
 
-  const handleFeedbackAction = (taskId: string, action: 'Approved' | 'Rejected') => {
+  const handleFeedbackAction = async (taskId: string, action: 'Approved' | 'Rejected') => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.feedback) return;
+
+    const updatedFeedback = {
+      ...task.feedback,
+      status: action
+    };
+
+    const updates: any = {
+      feedback: updatedFeedback
+    };
+
+    if (action === 'Approved' && task.feedback.requestedDeadline) {
+      updates.deadline = task.feedback.requestedDeadline;
+    }
+
+    const { error } = await supabase
+      .from('tasks')
+      .update(updates)
+      .eq('id', taskId);
+
+    if (error) {
+      console.error("Error updating feedback:", error);
+      return;
+    }
+
     setTasks(prev => prev.map(t => {
-      if (t.id === taskId && t.feedback) {
+      if (t.id === taskId) {
         return {
           ...t,
-          deadline: action === 'Approved' && t.feedback.requestedDeadline ? t.feedback.requestedDeadline : t.deadline,
-          feedback: {
-            ...t.feedback,
-            status: action
-          }
+          deadline: updates.deadline || t.deadline,
+          feedback: updatedFeedback
         };
       }
       return t;
@@ -159,6 +209,14 @@ export function TeamStatus({ user }: TeamStatusProps) {
       default: return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full lg:h-full animate-in fade-in duration-500">
@@ -242,7 +300,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Avg Attendance</p>
                 <p className="text-xl font-black text-white">
-                  {Math.round(team.reduce((acc, curr) => acc + curr.attendanceRate, 0) / team.length)}%
+                  {team.length > 0 ? Math.round(team.reduce((acc, curr) => acc + curr.attendanceRate, 0) / team.length) : 0}%
                 </p>
               </div>
             </div>
@@ -330,6 +388,13 @@ export function TeamStatus({ user }: TeamStatusProps) {
                         </td>
                       </tr>
                     ))}
+                    {filteredTeam.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                          No data available.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -427,7 +492,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
           {tasks.filter(t => t.assignerId === user.id).length === 0 && (
             <div className="col-span-full py-12 text-center text-slate-500 flex flex-col items-center gap-2">
               <CheckCircle2 className="w-8 h-8 text-slate-600" />
-              <p>No assigned tasks found.</p>
+              <p>No data available.</p>
             </div>
           )}
         </div>

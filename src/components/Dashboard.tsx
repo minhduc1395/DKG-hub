@@ -1,138 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { FileText, ArrowRight, Bell, Calendar as CalendarIcon, File, TrendingUp, CreditCard, Newspaper, Gift, MessageSquare, Users, CheckSquare, ClipboardList, Info, AlertCircle } from 'lucide-react';
+import { FileText, ArrowRight, Bell, Calendar as CalendarIcon, File, TrendingUp, CreditCard, Newspaper, Gift, MessageSquare, Users, CheckSquare, ClipboardList, Info, AlertCircle, Loader2 } from 'lucide-react';
 import { User } from '../types';
 import { NewsModal, NotificationsModal, NewsItem, NotificationItem } from './DashboardModals';
-
-const announcements: NewsItem[] = [
-  {
-    id: 1,
-    type: 'ANNOUNCEMENT',
-    date: 'Oct 28, 2023',
-    title: 'Q4 Town Hall Meeting & Strategy Update',
-    desc: 'Join us for the upcoming quarterly meeting where we will discuss our strategic goals for the remainder of the year and celebrate recent milestones.',
-    file: 'Strategy_Update_Q4.pdf'
-  },
-  {
-    id: 2,
-    type: 'CULTURE',
-    date: '2 days ago',
-    title: 'New Wellness Benefits Program',
-    desc: 'We are excited to introduce a new comprehensive wellness program designed to support your physical and mental health journey starting next month.',
-    file: 'Benefits_Guide_2023.pdf'
-  },
-  {
-    id: 3,
-    type: 'TEAM',
-    date: '4 hours ago',
-    title: 'Welcome our new Design Lead',
-    desc: 'Please join us in welcoming Sarah Jenkins to the team as our new Senior Design Lead. She brings over 10 years of experience in product design.',
-  },
-  // Expanded data for "See all"
-  {
-    id: 4,
-    type: 'SYSTEM',
-    date: 'Oct 20, 2023',
-    title: 'System Maintenance Scheduled',
-    desc: 'The HR portal will be undergoing scheduled maintenance this Sunday from 2 AM to 4 AM EST. Please save your work.',
-  },
-  {
-    id: 5,
-    type: 'POLICY',
-    date: 'Oct 15, 2023',
-    title: 'Updated Remote Work Policy',
-    desc: 'We have updated our remote work policy to provide more flexibility. Please review the new guidelines in the Documents section.',
-    file: 'Remote_Work_Policy_v2.pdf'
-  },
-  {
-    id: 6,
-    type: 'EVENT',
-    date: 'Oct 10, 2023',
-    title: 'Annual Charity Run',
-    desc: 'Registration for the annual charity run is now open. Join us in supporting local communities!',
-  }
-];
-
-const notifications: NotificationItem[] = [
-  {
-    id: 1,
-    icon: FileText,
-    iconBg: 'bg-blue-500/20',
-    iconColor: 'text-blue-400',
-    title: 'Payslip Available',
-    desc: 'Your payslip for October 2023 is now available for download.',
-    time: '2 hours ago',
-    category: 'system',
-    recipient_id: 'user_123' // Personal
-  },
-  {
-    id: 2,
-    icon: Gift,
-    iconBg: 'bg-cyan-500/20',
-    iconColor: 'text-cyan-400',
-    title: 'Holiday Reminder',
-    desc: 'Office will be closed on Monday for Labor Day.',
-    time: '1 day ago',
-    category: 'reminder',
-    recipient_id: null // Company
-  },
-  {
-    id: 3,
-    icon: MessageSquare,
-    iconBg: 'bg-indigo-500/20',
-    iconColor: 'text-indigo-400',
-    title: 'Performance Review',
-    desc: 'Please complete your self-assessment by Friday.',
-    time: '3 days ago',
-    category: 'task',
-    recipient_id: 'user_123' // Personal
-  },
-  // Expanded data for "View all"
-  {
-    id: 4,
-    icon: CheckSquare,
-    iconBg: 'bg-teal-500/20',
-    iconColor: 'text-teal-400',
-    title: 'Task Assigned',
-    desc: 'You have been assigned to the "Q4 Planning" task force.',
-    time: '4 days ago',
-    category: 'task',
-    recipient_id: 'user_123' // Personal
-  },
-  {
-    id: 5,
-    icon: AlertCircle,
-    iconBg: 'bg-amber-500/20',
-    iconColor: 'text-amber-400',
-    title: 'Password Expiry',
-    desc: 'Your password will expire in 5 days. Please update it soon.',
-    time: '5 days ago',
-    category: 'system',
-    recipient_id: 'user_123' // Personal
-  },
-  {
-    id: 6,
-    icon: Users,
-    iconBg: 'bg-purple-500/20',
-    iconColor: 'text-purple-400',
-    title: 'Team Lunch',
-    desc: 'Don\'t forget the team lunch at 12:30 PM today!',
-    time: '1 week ago',
-    category: 'reminder',
-    recipient_id: null // Company
-  },
-  {
-    id: 7,
-    icon: Info,
-    iconBg: 'bg-slate-500/20',
-    iconColor: 'text-slate-400',
-    title: 'Policy Update',
-    desc: 'Please review the updated IT security policy.',
-    time: '1 week ago',
-    category: 'news',
-    recipient_id: null // Company
-  }
-];
+import { supabase } from '../lib/supabaseClient';
+import { payslipService } from '../services/payslipService';
+import { timeOffService } from '../services/timeOffService';
 
 const staffQuickActions = [
   { id: 'request-time-off', label: 'Request Time Off', icon: CalendarIcon, iconBg: 'bg-indigo-500/20', iconColor: 'text-indigo-400' },
@@ -154,48 +27,142 @@ interface DashboardProps {
   onAction?: (tab: string) => void;
 }
 
-const upcomingEvents = [
-  {
-    id: 1,
-    title: 'Q4 Town Hall',
-    date: 'Oct 28',
-    time: '2:00 PM',
-    type: 'Company'
-  },
-  {
-    id: 2,
-    title: 'Halloween Party',
-    date: 'Oct 31',
-    time: '4:00 PM',
-    type: 'Social'
-  }
-];
-
 export function Dashboard({ user, onAction }: DashboardProps) {
   const isManager = user.role === 'manager';
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const [showAllNews, setShowAllNews] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'personal' | 'company'>('all');
+  
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [announcements, setAnnouncements] = useState<NewsItem[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [teamStatus, setTeamStatus] = useState({ onsite: 0, remote: 0, onLeave: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const displayNotifications = isManager 
-    ? [
-        {
-          id: 0,
-          icon: Bell,
-          iconBg: 'bg-rose-500/20',
-          iconColor: 'text-rose-400',
-          title: 'Approval Alert',
-          desc: 'Alex requested leave for 2 days.',
-          time: '10 mins ago',
-          category: 'task' as const,
-          recipient_id: 'manager_123'
-        },
-        ...notifications
-      ]
-    : notifications;
+  useEffect(() => {
+    fetchDashboardData();
+  }, [user.id, isManager]);
 
-  const filteredNotifications = displayNotifications.filter(item => {
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const newNotifications: NotificationItem[] = [];
+
+      // 1. Fetch recent tasks assigned to user
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('assignee_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (tasks) {
+        tasks.forEach(task => {
+          newNotifications.push({
+            id: `task-${task.id}`,
+            icon: CheckSquare,
+            iconBg: 'bg-teal-500/20',
+            iconColor: 'text-teal-400',
+            title: 'Task Assigned',
+            desc: `You have been assigned to "${task.title}".`,
+            time: new Date(task.created_at).toLocaleDateString(),
+            category: 'task',
+            recipient_id: user.id
+          });
+        });
+      }
+
+      // 2. Fetch recent payslips
+      const payslips = await payslipService.getMyPayslips(user.id);
+      if (payslips.length > 0) {
+        const latestPayslip = payslips[0];
+        newNotifications.push({
+          id: `payslip-${latestPayslip.id}`,
+          icon: FileText,
+          iconBg: 'bg-blue-500/20',
+          iconColor: 'text-blue-400',
+          title: 'Payslip Available',
+          desc: `Your payslip for ${latestPayslip.month} ${latestPayslip.year} is available.`,
+          time: 'Recently',
+          category: 'system',
+          recipient_id: user.id
+        });
+      }
+
+      // 3. Manager specific notifications
+      if (isManager) {
+        // Pending Leave Requests
+        const pendingLeaves = await timeOffService.fetchPendingApprovals(user.id);
+        if (pendingLeaves.length > 0) {
+          newNotifications.push({
+            id: 'pending-leaves',
+            icon: Bell,
+            iconBg: 'bg-rose-500/20',
+            iconColor: 'text-rose-400',
+            title: 'Leave Approvals',
+            desc: `You have ${pendingLeaves.length} pending leave requests.`,
+            time: 'Now',
+            category: 'task',
+            recipient_id: user.id
+          });
+        }
+
+        // Pending Payslip Requests
+        const pendingPayslips = await payslipService.getPendingPayslips();
+        if (pendingPayslips.length > 0) {
+          newNotifications.push({
+            id: 'pending-payslips',
+            icon: ClipboardList,
+            iconBg: 'bg-emerald-500/20',
+            iconColor: 'text-emerald-400',
+            title: 'Payslip Approvals',
+            desc: `You have ${pendingPayslips.length} pending payslip approvals.`,
+            time: 'Now',
+            category: 'task',
+            recipient_id: user.id
+          });
+        }
+
+        // Team Status (Onsite/Remote/On Leave)
+        // This is an approximation based on today's data
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Count On Leave
+        const { count: onLeaveCount } = await supabase
+          .from('time_off_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Approved')
+          .lte('start_date', todayStr)
+          .gte('end_date', todayStr);
+
+        // Count Present (Onsite)
+        const { count: presentCount } = await supabase
+          .from('attendance')
+          .select('*', { count: 'exact', head: true })
+          .eq('date', todayStr)
+          .in('status', ['Present', 'Late']);
+
+        setTeamStatus({
+          onsite: presentCount || 0,
+          remote: 0, // We don't have remote tracking yet
+          onLeave: onLeaveCount || 0
+        });
+      }
+
+      setNotifications(newNotifications);
+      // Announcements and Events are empty for now as requested
+      setAnnouncements([]);
+      setUpcomingEvents([]);
+
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredNotifications = notifications.filter(item => {
     if (activeTab === 'all') return true;
     if (activeTab === 'personal') return item.recipient_id !== null;
     if (activeTab === 'company') return item.recipient_id === null;
@@ -204,12 +171,20 @@ export function Dashboard({ user, onAction }: DashboardProps) {
 
   const displayQuickActions = isManager ? managerQuickActions : staffQuickActions;
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <>
       <NewsModal isOpen={showAllNews} onClose={() => setShowAllNews(false)} news={announcements} />
-      <NotificationsModal isOpen={showAllNotifications} onClose={() => setShowAllNotifications(false)} notifications={displayNotifications} />
+      <NotificationsModal isOpen={showAllNotifications} onClose={() => setShowAllNotifications(false)} notifications={notifications} />
       
-      <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full">
+      <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full animate-in fade-in duration-500">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="flex flex-col justify-between h-16 py-0.5">
@@ -243,15 +218,15 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
                     <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">12</span>
+                      <span className="text-2xl font-black text-white">{teamStatus.onsite}</span>
                       <span className="text-xs text-slate-400 font-bold uppercase">Onsite</span>
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">3</span>
+                      <span className="text-2xl font-black text-white">{teamStatus.remote}</span>
                       <span className="text-xs text-slate-400 font-bold uppercase">Remote</span>
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">1</span>
+                      <span className="text-2xl font-black text-white">{teamStatus.onLeave}</span>
                       <span className="text-xs text-slate-400 font-bold uppercase">On Leave</span>
                     </div>
                   </div>
@@ -269,12 +244,14 @@ export function Dashboard({ user, onAction }: DashboardProps) {
               <div className="flex-1 border-b border-white/10 pb-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-white">Notifications</h3>
-                  <button 
-                    onClick={() => setShowAllNotifications(true)}
-                    className="text-blue-300 hover:text-blue-400 text-sm font-medium"
-                  >
-                    View all
-                  </button>
+                  {notifications.length > 0 && (
+                    <button 
+                      onClick={() => setShowAllNotifications(true)}
+                      className="text-blue-300 hover:text-blue-400 text-sm font-medium"
+                    >
+                      View all
+                    </button>
+                  )}
                 </div>
 
                 {/* Tabs */}
@@ -298,8 +275,7 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                   {filteredNotifications.slice(0, 3).map((item) => (
                     <div 
                       key={item.id} 
-                      onClick={() => alert("This feature will be updated later.")}
-                      className="flex gap-4 group cursor-pointer"
+                      className="flex gap-4 group"
                     >
                       <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${item.iconBg}`}>
                         <item.icon className={`w-5 h-5 ${item.iconColor}`} />
@@ -313,7 +289,7 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                   ))}
                   {filteredNotifications.length === 0 && (
                     <div className="text-center py-4 text-slate-500 text-sm">
-                      No notifications found.
+                      No data available.
                     </div>
                   )}
                 </div>
@@ -323,12 +299,14 @@ export function Dashboard({ user, onAction }: DashboardProps) {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-white">Upcoming Events</h3>
-                  <button 
-                    onClick={() => onAction?.('calendar')}
-                    className="text-blue-300 hover:text-blue-400 text-sm font-medium"
-                  >
-                    Calendar
-                  </button>
+                  {upcomingEvents.length > 0 && (
+                    <button 
+                      onClick={() => onAction?.('calendar')}
+                      className="text-blue-300 hover:text-blue-400 text-sm font-medium"
+                    >
+                      Calendar
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-4">
@@ -346,6 +324,11 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                       </div>
                     </div>
                   ))}
+                  {upcomingEvents.length === 0 && (
+                    <div className="text-center py-4 text-slate-500 text-sm">
+                      No data available.
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -362,20 +345,21 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                 <Newspaper className="w-5 h-5" />
                 <span className="text-sm font-bold uppercase tracking-wider">What's new today?</span>
               </div>
-              <button 
-                onClick={() => setShowAllNews(true)}
-                className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-              >
-                See all
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {announcements.length > 0 && (
+                <button 
+                  onClick={() => setShowAllNews(true)}
+                  className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                  See all
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
             
             <div className="flex flex-col gap-4">
               {announcements.slice(0, 3).map((item) => (
                 <div 
                   key={item.id} 
-                  onClick={() => alert("This feature will be updated later.")}
                   className="p-5 rounded-2xl border border-white/5 hover:bg-white/5 transition-all group cursor-pointer"
                 >
                   <div className="flex flex-col gap-3">
@@ -402,6 +386,11 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                   </div>
                 </div>
               ))}
+              {announcements.length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  No data available.
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

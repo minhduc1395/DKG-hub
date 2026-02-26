@@ -1,10 +1,11 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Sidebar, Tab } from './components/Sidebar';
-import { Menu, UserCog, Loader2 } from 'lucide-react';
+import { Menu, Loader2 } from 'lucide-react';
 import { User } from './types';
 import { UserProvider, useUser } from './context/UserContext';
 import { Login } from './components/Login';
 import type { PayslipData } from './components/PayslipDetail';
+import { payslipService } from './services/payslipService';
 
 // Lazy loaded components
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -31,74 +32,13 @@ function LoadingFallback() {
 }
 
 function AppContent() {
-  const { user, setUser, isAuthenticated, login } = useUser();
+  const { user, setUser, isAuthenticated, isLoading, logout } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [timeOffModalDefaultOpen, setTimeOffModalDefaultOpen] = useState(false);
   const [viewingPayslip, setViewingPayslip] = useState<PayslipData | null>(null);
-
-  const mockPayslipHistory: PayslipData[] = [
-    {
-      id: 'PS-2023-10',
-      month: 'October',
-      year: 2023,
-      baseSalary: 25000000,
-      otAmount: 1500000,
-      performanceBonus: 2000000,
-      yearlyBonus: 0,
-      allowances: [
-        { name: 'Meal Allowance', amount: 750000 },
-        { name: 'Transport', amount: 500000 }
-      ],
-      insurance: {
-        bhxh: 2000000,
-        bhyt: 375000,
-        bhtn: 250000
-      },
-      tax: 1250000,
-      otherDeductions: 0
-    },
-    {
-      id: 'PS-2023-09',
-      month: 'September',
-      year: 2023,
-      baseSalary: 25000000,
-      otAmount: 800000,
-      performanceBonus: 1500000,
-      yearlyBonus: 0,
-      allowances: [
-        { name: 'Meal Allowance', amount: 750000 },
-        { name: 'Transport', amount: 500000 }
-      ],
-      insurance: {
-        bhxh: 2000000,
-        bhyt: 375000,
-        bhtn: 250000
-      },
-      tax: 1100000,
-      otherDeductions: 0
-    },
-    {
-      id: 'PS-2023-08',
-      month: 'August',
-      year: 2023,
-      baseSalary: 25000000,
-      otAmount: 0,
-      performanceBonus: 1000000,
-      yearlyBonus: 0,
-      allowances: [
-        { name: 'Meal Allowance', amount: 750000 },
-        { name: 'Transport', amount: 500000 }
-      ],
-      insurance: {
-        bhxh: 2000000,
-        bhyt: 375000,
-        bhtn: 250000
-      },
-      tax: 950000,
-      otherDeductions: 0
-    }
-  ];
+  const [payslipHistory, setPayslipHistory] = useState<PayslipData[]>([]);
+  const [loadingPayslips, setLoadingPayslips] = useState(false);
 
   useEffect(() => {
     if (activeTab !== 'timeoff') {
@@ -109,56 +49,41 @@ function AppContent() {
     }
   }, [activeTab]);
 
-  if (!isAuthenticated || !user) {
-    return <Login onLogin={() => {
-      login({
-        id: '1',
-        name: 'Alex Morgan',
-        role: 'staff',
-        email: 'alex.morgan@company.com',
-        avatar: 'https://picsum.photos/seed/alex/100/100',
-        department: 'Product Design',
-        manager_id: '2',
-        employeeId: 'VKIS-001',
-        dob: '1990-05-15',
-        gender: 'Male',
-        position: 'Senior Product Designer',
-        joiningDate: '2020-03-01',
-        contractType: 'Full-time',
-        lineManager: 'Sarah Jenkins',
-        companyEmail: 'alex.morgan@company.com',
-        personalEmail: '',
-        phone: '',
-        permanentAddress: '',
-        temporaryAddress: '',
-        idCardNumber: '',
-        idCardDate: '',
-        idCardPlace: '',
-        bankAccountNumber: '',
-        bankName: '',
-        bankBranch: ''
-      });
-    }} />;
+  useEffect(() => {
+    if (user && (activeTab === 'payslip' || activeTab === 'dashboard')) {
+      const fetchPayslips = async () => {
+        setLoadingPayslips(true);
+        try {
+          const data = await payslipService.getMyPayslips(user.id);
+          setPayslipHistory(data);
+        } catch (error) {
+          console.error("Failed to fetch payslips", error);
+        } finally {
+          setLoadingPayslips(false);
+        }
+      };
+      fetchPayslips();
+    }
+  }, [user, activeTab]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-black">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
   }
 
-  const toggleRole = () => {
-    setUser(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        role: prev.role === 'staff' ? 'manager' : 'staff',
-        name: prev.role === 'staff' ? 'Sarah Jenkins' : 'Alex Morgan',
-        avatar: prev.role === 'staff' ? 'https://picsum.photos/seed/sarah/100/100' : 'https://picsum.photos/seed/alex/100/100'
-      };
-    });
-  };
+  if (!isAuthenticated || !user) {
+    return <Login />;
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-row overflow-hidden bg-background-dark">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        onLogout={() => setUser(null)} 
+        onLogout={logout} 
         user={user} 
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
@@ -177,13 +102,6 @@ function AppContent() {
           </div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={toggleRole}
-              className="p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg border border-white/10"
-              title={`Switch to ${user.role === 'staff' ? 'Manager' : 'Staff'} View`}
-            >
-              <UserCog className="w-5 h-5" />
-            </button>
-            <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-slate-400 hover:text-white p-2"
             >
@@ -193,17 +111,6 @@ function AppContent() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:pt-6 lg:px-10 lg:pb-10 relative">
-          {/* Role Toggle for Demo */}
-          <div className="absolute top-4 right-4 z-50 hidden md:block">
-            <button 
-              onClick={toggleRole}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-medium text-slate-300 transition-colors"
-            >
-              <UserCog className="w-3 h-3" />
-              Switch to {user.role === 'staff' ? 'Manager' : 'Staff'} View
-            </button>
-          </div>
-
           <Suspense fallback={<LoadingFallback />}>
             {activeTab === 'dashboard' && (
               viewingPayslip ? (
@@ -216,7 +123,12 @@ function AppContent() {
                       setTimeOffModalDefaultOpen(true);
                       setActiveTab('timeoff');
                     } else if (tab === 'payslip') {
-                      setViewingPayslip(mockPayslipHistory[0]);
+                      // If we have payslips loaded, show the first one, otherwise switch tab to load them
+                      if (payslipHistory.length > 0) {
+                        setViewingPayslip(payslipHistory[0]);
+                      } else {
+                         setActiveTab('payslip');
+                      }
                     } else {
                       setActiveTab(tab as Tab);
                     }
@@ -227,14 +139,15 @@ function AppContent() {
             {activeTab === 'calendar' && <Calendar user={user} />}
             {activeTab === 'tasks' && <Tasks user={user} />}
             {activeTab === 'employees' && <Employees />}
-            {activeTab === 'attendance' && <Attendance />}
+            {activeTab === 'attendance' && <Attendance user={user} />}
             {/* Placeholders for new tabs */}
             {activeTab === 'profile' && <Profile user={user} onUpdate={(u) => setUser(u)} />}
             {activeTab === 'payslip' && (
               viewingPayslip ? (
                 <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
               ) : (
-                <PayslipHistory history={mockPayslipHistory} onSelect={(p) => setViewingPayslip(p)} />
+                loadingPayslips ? <LoadingFallback /> :
+                <PayslipHistory history={payslipHistory} onSelect={(p) => setViewingPayslip(p)} />
               )
             )}
             {activeTab === 'timeoff' && (

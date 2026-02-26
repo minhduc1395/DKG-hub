@@ -1,26 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User as UserIcon, Bell, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User as UserIcon, Bell, Info, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
-
-// Mock data for calendar events
-const events = [
-  { id: 1, date: new Date(2023, 9, 24), title: 'Team Meeting', type: 'company' },
-  { id: 2, date: new Date(2023, 9, 28), title: 'Q4 Town Hall', type: 'company' },
-  { id: 3, date: new Date(2023, 9, 31), title: 'Halloween Party', type: 'company' },
-  { id: 4, date: new Date(2023, 10, 10), title: 'Veterans Day (Observed)', type: 'holiday' },
-  { id: 5, date: new Date(2023, 10, 23), title: 'Thanksgiving', type: 'holiday' },
-  { id: 6, date: new Date(2023, 10, 24), title: 'Day After Thanksgiving', type: 'holiday' },
-  { id: 7, date: new Date(2023, 9, 15), title: 'Personal Leave', type: 'personal' },
-  { id: 8, date: new Date(2023, 9, 16), title: 'Personal Leave', type: 'personal' },
-];
-
-const teamLeaveStatus = [
-  { id: 1, name: 'Alex Morgan', status: 'On Leave', date: 'Oct 24 - Oct 26', avatar: 'https://picsum.photos/seed/alex/40/40' },
-  { id: 2, name: 'John Doe', status: 'Upcoming', date: 'Oct 30 - Nov 02', avatar: 'https://picsum.photos/seed/john/40/40' },
-  { id: 3, name: 'Sarah Jenkins', status: 'On Leave', date: 'Oct 23 - Oct 25', avatar: 'https://picsum.photos/seed/sarah/40/40' },
-];
+import { supabase } from '../lib/supabaseClient';
 
 const eventTypes = {
   company: { label: 'Company Event', color: 'bg-blue-500', textColor: 'text-blue-400', bgColor: 'bg-blue-500/20' },
@@ -28,19 +11,118 @@ const eventTypes = {
   personal: { label: 'Personal Leave', color: 'bg-rose-500', textColor: 'text-rose-400', bgColor: 'bg-rose-500/20' },
 };
 
+interface CalendarEvent {
+  id: string | number;
+  date: Date;
+  title: string;
+  type: 'company' | 'holiday' | 'personal';
+}
+
+interface TeamLeave {
+  id: string;
+  name: string;
+  status: string;
+  date: string;
+  avatar: string;
+}
+
 interface CalendarProps {
   user: User;
 }
 
 export function Calendar({ user }: CalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date(2023, 9, 1)); // Start at Oct 2023 for demo
+  const [currentDate, setCurrentDate] = useState(new Date());
   const isManager = user.role === 'manager';
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [teamLeaveStatus, setTeamLeaveStatus] = useState<TeamLeave[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const year = currentDate.getFullYear();
+
+  useEffect(() => {
+    fetchCalendarData();
+  }, [currentDate, user.id]);
+
+  const fetchCalendarData = async () => {
+    setLoading(true);
+    try {
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+
+      // Fetch approved time off requests for the current month
+      const { data: leaveRequests, error } = await supabase
+        .from('time_off_requests')
+        .select(`
+          id,
+          start_date,
+          end_date,
+          leave_type,
+          user_id,
+          profiles:user_id (name, avatar_url)
+        `)
+        .eq('status', 'Approved')
+        .or(`start_date.gte.${startOfMonth},end_date.lte.${endOfMonth}`);
+
+      if (error) throw error;
+
+      const newEvents: CalendarEvent[] = [];
+      const newTeamLeave: TeamLeave[] = [];
+
+      if (leaveRequests) {
+        leaveRequests.forEach((request: any) => {
+          const startDate = new Date(request.start_date);
+          const endDate = new Date(request.end_date);
+          const userName = request.profiles?.name || 'Unknown';
+          const avatar = request.profiles?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=random`;
+
+          // Add to events (simplified: just start date for now, or expand for range)
+          // For personal calendar, show own leaves. For manager, maybe show all?
+          // Let's show own leaves as 'personal' and others as 'company' (or maybe just not show others on main calendar to avoid clutter?)
+          // Requirement says "View holidays, events, and team availability."
+          
+          if (request.user_id === user.id) {
+             newEvents.push({
+              id: request.id,
+              date: startDate, // Simplified to start date
+              title: `${request.leave_type} Leave`,
+              type: 'personal'
+            });
+          }
+
+          // Add to team leave status (for sidebar)
+          // Check if the leave overlaps with TODAY or upcoming in this month
+          const today = new Date();
+          const isActive = today >= startDate && today <= endDate;
+          const isUpcoming = startDate > today;
+
+          if (isActive || isUpcoming) {
+             newTeamLeave.push({
+              id: request.id,
+              name: userName,
+              status: isActive ? 'On Leave' : 'Upcoming',
+              date: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+              avatar: avatar
+            });
+          }
+        });
+      }
+      
+      // Add some static holidays for demo purposes if needed, or fetch from a holidays table if it existed.
+      // For now, we'll keep the events array clean with just fetched data.
+
+      setEvents(newEvents);
+      setTeamLeaveStatus(newTeamLeave);
+
+    } catch (error) {
+      console.error("Error fetching calendar data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const prevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -69,7 +151,8 @@ export function Calendar({ user }: CalendarProps) {
     // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const dayEvents = getEventsForDay(day);
-      const isToday = day === 24 && currentDate.getMonth() === 9 && currentDate.getFullYear() === 2023; // Mock today
+      const today = new Date();
+      const isToday = day === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
 
       days.push(
         <div key={day} className={cn(
@@ -106,6 +189,14 @@ export function Calendar({ user }: CalendarProps) {
 
     return days;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full w-full">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full lg:h-full animate-in fade-in duration-500">
@@ -147,7 +238,7 @@ export function Calendar({ user }: CalendarProps) {
                 <Bell className="w-4 h-4 text-blue-400" />
                 Upcoming
               </h3>
-              <span className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">3 Events</span>
+              <span className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">{events.length} Events</span>
             </div>
             <div className="space-y-3">
               {events.slice(0, 3).map((event) => (
@@ -161,6 +252,11 @@ export function Calendar({ user }: CalendarProps) {
                   </div>
                 </div>
               ))}
+              {events.length === 0 && (
+                 <div className="text-center py-4 text-slate-500 text-xs">
+                  No data available.
+                </div>
+              )}
             </div>
           </div>
 
@@ -203,6 +299,11 @@ export function Calendar({ user }: CalendarProps) {
                     </div>
                   </div>
                 ))}
+                {teamLeaveStatus.length === 0 && (
+                  <div className="text-center py-4 text-slate-500 text-xs">
+                    No data available.
+                  </div>
+                )}
               </div>
             </div>
           )}

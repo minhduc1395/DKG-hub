@@ -3,7 +3,7 @@ import { X, FileText, Gift, MessageSquare, Bell, CheckSquare, Info, AlertCircle,
 import { motion, AnimatePresence } from 'motion/react';
 
 export interface NewsItem {
-  id: number;
+  id: number | string;
   type: string;
   date: string;
   title: string;
@@ -12,7 +12,7 @@ export interface NewsItem {
 }
 
 export interface NotificationItem {
-  id: number;
+  id: number | string;
   icon: any;
   iconBg: string;
   iconColor: string;
@@ -87,6 +87,11 @@ export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
                   </div>
                 </div>
               ))}
+              {news.length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  No data available.
+                </div>
+              )}
             </div>
           </motion.div>
         </>
@@ -189,7 +194,7 @@ export function NotificationsModal({ isOpen, onClose, notifications }: Notificat
               ))}
               {filteredNotifications.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full py-8 text-slate-500 text-sm">
-                  No notifications found.
+                  No data available.
                 </div>
               )}
             </div>

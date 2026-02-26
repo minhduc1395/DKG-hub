@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { User } from '../types';
-import { Camera, Save, User as UserIcon, Briefcase, FileText, CreditCard, Phone, MapPin, Mail } from 'lucide-react';
+import { Camera, Save, User as UserIcon, Briefcase, FileText, CreditCard, Phone, MapPin, Mail, Loader2 } from 'lucide-react';
 import { AvatarPicker } from './AvatarPicker';
+import { supabase } from '../lib/supabaseClient';
 
 interface ProfileProps {
   user: User;
@@ -12,6 +13,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
   const [formData, setFormData] = useState<User>(user);
   const [hasChanges, setHasChanges] = useState(false);
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Check for changes whenever formData updates
   useEffect(() => {
@@ -28,12 +30,44 @@ export function Profile({ user, onUpdate }: ProfileProps) {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    if (onUpdate) {
-      onUpdate(formData);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const updates = {
+        name: formData.name,
+        avatar: formData.avatar,
+        department: formData.department,
+        personal_email: formData.personalEmail,
+        phone: formData.phone,
+        permanent_address: formData.permanentAddress,
+        temporary_address: formData.temporaryAddress,
+        id_card_number: formData.idCardNumber,
+        id_card_date: formData.idCardDate,
+        id_card_place: formData.idCardPlace,
+        bank_account_number: formData.bankAccountNumber,
+        bank_name: formData.bankName,
+        bank_branch: formData.bankBranch,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      if (onUpdate) {
+        onUpdate(formData);
+      }
+      setHasChanges(false);
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    setHasChanges(false);
-    alert('Profile updated successfully!');
   };
 
   const handleAvatarSave = (newUrl: string) => {
@@ -53,7 +87,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
         currentAvatar={formData.avatar}
       />
       
-      <div className="max-w-5xl mx-auto pb-24 space-y-8 relative">
+      <div className="max-w-5xl mx-auto pb-24 space-y-8 relative animate-in fade-in duration-500">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-white">My Profile</h1>
         </div>
@@ -73,6 +107,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
                   src={formData.avatar} 
                   alt={formData.name} 
                   className="w-32 h-32 rounded-full object-cover border-4 border-white/10"
+                  referrerPolicy="no-referrer"
                 />
                 <button 
                   onClick={() => setIsAvatarPickerOpen(true)}
@@ -294,9 +329,9 @@ export function Profile({ user, onUpdate }: ProfileProps) {
       <div className="flex justify-center pt-8">
         <button
           onClick={handleSave}
-          disabled={!hasChanges}
+          disabled={!hasChanges || isSaving}
           className={`relative group overflow-hidden rounded-xl transition-all duration-500 transform ${
-            hasChanges 
+            hasChanges && !isSaving
               ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] cursor-pointer' 
               : 'opacity-50 cursor-not-allowed'
           }`}
@@ -312,11 +347,18 @@ export function Profile({ user, onUpdate }: ProfileProps) {
 
           {/* Content */}
           <div className="relative z-10 px-10 py-3 flex items-center justify-center gap-2 text-white font-bold tracking-wide text-base drop-shadow-md">
-            Save Changes
+            {isSaving ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
           </div>
           
           {/* Sweep Effect */}
-          {hasChanges && (
+          {hasChanges && !isSaving && (
             <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out skew-x-[-20deg] pointer-events-none" />
           )}
         </button>

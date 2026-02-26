@@ -1,19 +1,34 @@
 import { useState, useMemo } from 'react';
 import React from 'react';
 import { motion } from 'motion/react';
-import { Hexagon, Lock, User, ArrowRight } from 'lucide-react';
+import { Hexagon, Lock, User, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
-interface LoginProps {
-  onLogin: () => void;
-}
-
-export function Login({ onLogin }: LoginProps) {
-  const [username, setUsername] = useState('');
+export function Login() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Generate random stars
@@ -202,6 +217,12 @@ export function Login({ onLogin }: LoginProps) {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 md:gap-6">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-2 text-red-400 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
             <div className="space-y-3 md:space-y-5">
               <div className="relative group">
                 <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
@@ -209,11 +230,12 @@ export function Login({ onLogin }: LoginProps) {
                 </div>
                 <div className="absolute inset-0 bg-white/[0.03] rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
                 <input
-                  type="text"
-                  placeholder="Username / ID"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
+                  required
                 />
               </div>
               
@@ -228,6 +250,7 @@ export function Login({ onLogin }: LoginProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
+                  required
                 />
               </div>
             </div>
@@ -244,7 +267,8 @@ export function Login({ onLogin }: LoginProps) {
 
             <button
               type="submit"
-              className="w-full relative group overflow-hidden rounded-xl md:rounded-2xl transition-all duration-500 transform hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98]"
+              disabled={isLoading}
+              className="w-full relative group overflow-hidden rounded-xl md:rounded-2xl transition-all duration-500 transform hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {/* Main Glass Body - Natural & Seamless */}
               <div className="absolute inset-0 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-md border border-white/10 group-hover:border-white/20 transition-all duration-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] rounded-xl md:rounded-2xl" />
@@ -257,8 +281,14 @@ export function Login({ onLogin }: LoginProps) {
 
               {/* Content */}
               <div className="relative z-10 py-3 md:py-4 flex items-center justify-center gap-2 text-white font-bold tracking-wide text-base md:text-lg drop-shadow-md">
-                LOGIN
-                <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform duration-300" />
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                ) : (
+                  <>
+                    LOGIN
+                    <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform duration-300" />
+                  </>
+                )}
               </div>
               
               {/* Sweep Effect - Smoother & Contained */}

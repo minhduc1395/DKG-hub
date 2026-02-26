@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CheckCircle2, 
@@ -17,96 +17,49 @@ import {
   FileText,
   DollarSign,
   CalendarClock,
-  User as UserIcon
+  User as UserIcon,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
 import { PayslipDetail, PayslipData } from './PayslipDetail';
 import { PayslipHistory } from './PayslipHistory';
-
-interface PayslipRequest {
-  id: string;
-  employeeName: string;
-  employeeId: string;
-  avatar: string;
-  department: string;
-  month: string;
-  year: number;
-  netSalary: number;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  submittedAt: string;
-  approvedAt?: string;
-  note?: string;
-}
-
-const mockPendingRequests: PayslipRequest[] = [
-  {
-    id: 'PR-001',
-    employeeName: 'Alex Morgan',
-    employeeId: 'VKIS-001',
-    avatar: 'https://picsum.photos/seed/alex/100/100',
-    department: 'Product Design',
-    month: 'October',
-    year: 2023,
-    netSalary: 28500000,
-    status: 'Pending',
-    submittedAt: '2 days ago'
-  },
-  {
-    id: 'PR-002',
-    employeeName: 'John Doe',
-    employeeId: 'VKIS-005',
-    avatar: 'https://picsum.photos/seed/john/100/100',
-    department: 'Engineering',
-    month: 'October',
-    year: 2023,
-    netSalary: 32000000,
-    status: 'Pending',
-    submittedAt: '1 day ago'
-  },
-  {
-    id: 'PR-003',
-    employeeName: 'Emily Chen',
-    employeeId: 'VKIS-012',
-    avatar: 'https://picsum.photos/seed/emily/100/100',
-    department: 'Marketing',
-    month: 'October',
-    year: 2023,
-    netSalary: 24000000,
-    status: 'Pending',
-    submittedAt: '5 hours ago'
-  }
-];
-
-const mockHistory: PayslipRequest[] = [
-  {
-    id: 'PR-000',
-    employeeName: 'Sarah Jenkins',
-    employeeId: 'VKIS-002',
-    avatar: 'https://picsum.photos/seed/sarah/100/100',
-    department: 'Management',
-    month: 'September',
-    year: 2023,
-    netSalary: 45000000,
-    status: 'Approved',
-    submittedAt: '1 month ago',
-    approvedAt: '28 days ago',
-    note: 'Standard monthly payroll'
-  }
-];
+import { payslipService, PayslipRequest } from '../services/payslipService';
 
 interface PayslipApprovalsProps {
   user: User;
 }
 
 export function PayslipApprovals({ user }: PayslipApprovalsProps) {
-  const [pendingRequests, setPendingRequests] = useState<PayslipRequest[]>(mockPendingRequests);
-  const [history, setHistory] = useState<PayslipRequest[]>(mockHistory);
+  const [pendingRequests, setPendingRequests] = useState<PayslipRequest[]>([]);
+  const [history, setHistory] = useState<PayslipRequest[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<'pending' | 'history'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPayslip, setSelectedPayslip] = useState<PayslipData | null>(null);
   const [viewingHistoryFor, setViewingHistoryFor] = useState<PayslipRequest | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [pending, hist] = await Promise.all([
+        payslipService.getPendingPayslips(),
+        payslipService.getPayslipHistory()
+      ]);
+      setPendingRequests(pending);
+      setHistory(hist);
+    } catch (error) {
+      console.error("Error fetching payslip approvals data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSelectAll = () => {
     if (selectedIds.length === pendingRequests.length) {
@@ -122,27 +75,31 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
     );
   };
 
-  const approveRequest = (id: string) => {
-    const request = pendingRequests.find(r => r.id === id);
-    if (!request) return;
-
-    const updatedRequest: PayslipRequest = {
-      ...request,
-      status: 'Approved',
-      approvedAt: 'Just now'
-    };
-
-    setPendingRequests(prev => prev.filter(r => r.id !== id));
-    setHistory(prev => [updatedRequest, ...prev]);
-    setSelectedIds(prev => prev.filter(i => i !== id));
+  const approveRequest = async (id: string) => {
+    const success = await payslipService.approvePayslip(id);
+    if (success) {
+      // Optimistic update or refetch
+      const request = pendingRequests.find(r => r.id === id);
+      if (request) {
+        const updatedRequest: PayslipRequest = {
+          ...request,
+          status: 'Approved',
+          approvedAt: new Date().toLocaleDateString()
+        };
+        setPendingRequests(prev => prev.filter(r => r.id !== id));
+        setHistory(prev => [updatedRequest, ...prev]);
+        setSelectedIds(prev => prev.filter(i => i !== id));
+      }
+    }
   };
 
-  const approveSelected = () => {
-    const toApprove = pendingRequests.filter(r => selectedIds.includes(r.id));
-    const updated = toApprove.map(r => ({ ...r, status: 'Approved' as const, approvedAt: 'Just now' }));
+  const approveSelected = async () => {
+    // Process all approvals
+    const promises = selectedIds.map(id => payslipService.approvePayslip(id));
+    await Promise.all(promises);
     
-    setPendingRequests(prev => prev.filter(r => !selectedIds.includes(r.id)));
-    setHistory(prev => [...updated, ...prev]);
+    // Refresh data to be safe
+    fetchData();
     setSelectedIds([]);
   };
 
@@ -155,32 +112,19 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
     r.employeeId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleViewDetails = (request: PayslipRequest) => {
-    // Create mock detailed data based on the request
-    const detailData: PayslipData = {
-      id: request.id,
-      month: request.month,
-      year: request.year,
-      baseSalary: Math.round(request.netSalary * 0.85),
-      otAmount: Math.round(request.netSalary * 0.05),
-      performanceBonus: Math.round(request.netSalary * 0.1),
-      yearlyBonus: 0,
-      allowances: [
-        { name: 'Meal Allowance', amount: 750000 },
-        { name: 'Transport', amount: 500000 }
-      ],
-      insurance: {
-        bhxh: Math.round(request.netSalary * 0.08),
-        bhyt: Math.round(request.netSalary * 0.015),
-        bhtn: Math.round(request.netSalary * 0.01)
-      },
-      tax: Math.round(request.netSalary * 0.05),
-      otherDeductions: 0
-    };
-    setSelectedPayslip(detailData);
-    // Do NOT set viewingHistoryFor here. It should only be set when "History" is clicked from detail view.
-    // We store the current request temporarily to know who we are viewing if history is requested.
-    setViewingHistoryFor(request); 
+  const handleViewDetails = async (request: PayslipRequest) => {
+    setLoadingDetails(true);
+    try {
+      const details = await payslipService.getPayslipById(request.id);
+      if (details) {
+        setSelectedPayslip(details);
+        setViewingHistoryFor(request);
+      }
+    } catch (error) {
+      console.error("Error fetching payslip details:", error);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const handleViewHistory = () => {
@@ -193,6 +137,14 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
     setSelectedPayslip(null);
     setViewingHistoryFor(null);
   };
+
+  if (loading && !selectedPayslip && !viewingHistoryFor) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   if (selectedPayslip) {
     return (
@@ -207,56 +159,19 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
   }
 
   if (viewingHistoryFor) {
-    // Generate mock history for this specific employee
-    const employeeHistory: PayslipData[] = [
-      {
-        id: viewingHistoryFor.id, // Current one
-        month: viewingHistoryFor.month,
-        year: viewingHistoryFor.year,
-        baseSalary: Math.round(viewingHistoryFor.netSalary * 0.85),
-        otAmount: Math.round(viewingHistoryFor.netSalary * 0.05),
-        performanceBonus: Math.round(viewingHistoryFor.netSalary * 0.1),
-        yearlyBonus: 0,
-        allowances: [{ name: 'Meal Allowance', amount: 750000 }, { name: 'Transport', amount: 500000 }],
-        insurance: { bhxh: Math.round(viewingHistoryFor.netSalary * 0.08), bhyt: Math.round(viewingHistoryFor.netSalary * 0.015), bhtn: Math.round(viewingHistoryFor.netSalary * 0.01) },
-        tax: Math.round(viewingHistoryFor.netSalary * 0.05),
-        otherDeductions: 0
-      },
-      // Previous month mock
-      {
-        id: 'PR-PREV-1',
-        month: 'September',
-        year: 2023,
-        baseSalary: Math.round(viewingHistoryFor.netSalary * 0.85),
-        otAmount: 0,
-        performanceBonus: 0,
-        yearlyBonus: 0,
-        allowances: [{ name: 'Meal Allowance', amount: 750000 }, { name: 'Transport', amount: 500000 }],
-        insurance: { bhxh: Math.round(viewingHistoryFor.netSalary * 0.08), bhyt: Math.round(viewingHistoryFor.netSalary * 0.015), bhtn: Math.round(viewingHistoryFor.netSalary * 0.01) },
-        tax: Math.round(viewingHistoryFor.netSalary * 0.04),
-        otherDeductions: 0
-      }
-    ];
-
+    // In a real app, we would fetch history for this specific employee here
+    // For now, we'll just show "No data available" if we don't have it, or filter from global history if appropriate
+    // But since we don't have an endpoint for "get payslips by employee ID" in the service yet (except getMyPayslips which is for current user),
+    // we might need to add that or just show a placeholder.
+    // Actually, getMyPayslips takes userId, so we can use it!
+    
     return (
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
-        <div className="flex items-center gap-4 mb-4">
-           <button 
-            onClick={handleBackToApprovals}
-            className="p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors"
-          >
-            <ChevronRight className="w-6 h-6 rotate-180" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">Payslip History</h1>
-            <p className="text-slate-400 text-sm">Viewing history for <span className="text-blue-400 font-bold">{viewingHistoryFor.employeeName}</span></p>
-          </div>
-        </div>
-        <PayslipHistory 
-          history={employeeHistory} 
-          onSelect={(payslip) => setSelectedPayslip(payslip)} 
-        />
-      </div>
+      <EmployeeHistoryView 
+        employeeId={viewingHistoryFor.employeeId} 
+        employeeName={viewingHistoryFor.employeeName}
+        onBack={handleBackToApprovals}
+        onSelect={(payslip) => setSelectedPayslip(payslip)}
+      />
     );
   }
 
@@ -410,12 +325,12 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                         <div className="relative">
                           <img src={request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" />
                           <div className="absolute inset-0 bg-blue-500/20 rounded-full opacity-0 group-hover/emp:opacity-100 transition-opacity flex items-center justify-center">
-                            <Eye className="w-4 h-4 text-white" />
+                            {loadingDetails ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Eye className="w-4 h-4 text-white" />}
                           </div>
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-white group-hover/emp:text-blue-400 transition-colors">{request.employeeName}</span>
-                          <span className="text-[10px] text-slate-500">{request.employeeId} • {request.department}</span>
+                          <span className="text-xs text-slate-500">{request.employeeId} • {request.department}</span>
                         </div>
                       </div>
                     </td>
@@ -465,8 +380,8 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                 ))}
                 {(activeView === 'pending' ? filteredPending : history).length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                      No payslip requests found.
+                    <td colSpan={activeView === 'pending' ? 6 : 5} className="px-6 py-12 text-center text-slate-500">
+                      No data available.
                     </td>
                   </tr>
                 )}
@@ -475,6 +390,60 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Sub-component for viewing employee history
+function EmployeeHistoryView({ employeeId, employeeName, onBack, onSelect }: { 
+  employeeId: string, 
+  employeeName: string, 
+  onBack: () => void,
+  onSelect: (payslip: PayslipData) => void
+}) {
+  const [history, setHistory] = useState<PayslipData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setLoading(true);
+      try {
+        const data = await payslipService.getMyPayslips(employeeId);
+        setHistory(data);
+      } catch (error) {
+        console.error("Error fetching employee payslip history:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, [employeeId]);
+
+  return (
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+      <div className="flex items-center gap-4 mb-4">
+         <button 
+          onClick={onBack}
+          className="p-2 rounded-full bg-white/5 text-slate-400 hover:text-white transition-colors"
+        >
+          <ChevronRight className="w-6 h-6 rotate-180" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Payslip History</h1>
+          <p className="text-slate-400 text-sm">Viewing history for <span className="text-blue-400 font-bold">{employeeName}</span></p>
+        </div>
+      </div>
+      
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        </div>
+      ) : (
+        <PayslipHistory 
+          history={history} 
+          onSelect={onSelect} 
+        />
+      )}
     </div>
   );
 }

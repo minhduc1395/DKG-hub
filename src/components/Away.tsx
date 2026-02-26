@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, Plus, ChevronLeft, ChevronRight, X, Loader2 } from 'lucide-react';
 import { User } from '../types';
 import { timeOffService, TimeOffBalance, TimeOffRequest } from '../services/timeOffService';
+import { cn } from '../lib/utils';
 
 interface AwayProps {
   user: User;
@@ -20,6 +21,33 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const [activeTab, setActiveTab] = useState<'my-requests' | 'approvals'>(
     initialTab || (user.role === 'manager' ? 'approvals' : 'my-requests')
   );
+
+  // Calendar State
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const prevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+  const monthName = currentDate.toLocaleString('default', { month: 'long' });
+  const year = currentDate.getFullYear();
+
+  const getDayStatus = (day: number) => {
+    const dateStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    
+    // Find request covering this date
+    const request = history.find(req => {
+      return req.startDate <= dateStr && req.endDate >= dateStr;
+    });
+
+    return request?.status;
+  };
 
   useEffect(() => {
     if (defaultOpenModal) {
@@ -43,7 +71,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
 
   useEffect(() => {
     loadData();
-  }, [user.id]);
+  }, [user.id, user.role]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -107,6 +135,14 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   };
 
   const isManagerMode = initialTab === 'approvals';
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[400px]">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -176,11 +212,11 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <CalendarIcon className="w-5 h-5 text-blue-400" />
-                  Personal Calendar
+                  {monthName} {year}
                 </h3>
                 <div className="flex gap-2">
-                  <button className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors"><ChevronRight className="w-4 h-4" /></button>
+                  <button onClick={prevMonth} className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+                  <button onClick={nextMonth} className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-colors"><ChevronRight className="w-4 h-4" /></button>
                 </div>
               </div>
               
@@ -189,15 +225,26 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
                   <div key={`${day}-${i}`} className="text-center text-[10px] font-bold text-slate-500 py-2">{day}</div>
                 ))}
-                {Array.from({ length: 31 }).map((_, i) => {
+                
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                  <div key={`empty-${i}`} />
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
-                  const isApproved = day === 10 || day === 11 || day === 12;
+                  const status = getDayStatus(day);
+                  const isApproved = status === 'approved' || status === 'Approved';
+                  const isPending = status === 'pending' || status === 'Pending';
+                  
                   return (
                     <div 
                       key={i} 
-                      className={`aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
-                        isApproved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-slate-400 hover:bg-white/5'
-                      }`}
+                      className={cn(
+                        "aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all",
+                        isApproved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 
+                        isPending ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                        'text-slate-400 hover:bg-white/5'
+                      )}
                     >
                       {day}
                     </div>
@@ -221,18 +268,18 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         {/* Right Column: History / Approvals */}
         <div className={`${isManagerMode ? 'w-full' : 'lg:col-span-2'} space-y-6`}>
           <div className="rounded-[2rem] bg-white/5 border border-white/5 overflow-hidden">
-            <div className="flex border-b border-white/5">
+            <div className="flex flex-wrap border-b border-white/5">
               {!isManagerMode ? (
                 <button 
                   onClick={() => setActiveTab('my-requests')}
-                  className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   My Requests
                 </button>
               ) : (
                 <button 
                   onClick={() => setActiveTab('approvals')}
-                  className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Team Approvals
                   {approvals.length > 0 && (
@@ -244,7 +291,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
               {isManagerMode ? (
                 <button 
                   onClick={() => setActiveTab('my-requests')}
-                  className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Approval History
                 </button>
@@ -252,7 +299,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                 user.role === 'manager' && (
                   <button 
                     onClick={() => setActiveTab('approvals')}
-                    className={`flex-1 py-4 text-sm font-bold transition-all ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
+                    className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                   >
                     Team Approvals
                     {approvals.length > 0 && (
@@ -268,13 +315,13 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                 <div className="space-y-4">
                   {isManagerMode ? (
                     approvalHistory.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500">No approval history found.</div>
+                      <div className="text-center py-12 text-slate-500">No data available.</div>
                     ) : (
                       <div className="flex flex-col gap-4">
                         {approvalHistory.map((req) => (
                           <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
+                              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
                                 {req.userName.charAt(0)}
                               </div>
                               <div className="flex flex-col">
@@ -283,7 +330,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                                 <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
                               </div>
                             </div>
-                            <div>
+                            <div className="shrink-0">
                               {getStatusBadge(req.status)}
                             </div>
                           </div>
@@ -292,7 +339,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                     )
                   ) : (
                     history.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500">No leave history found.</div>
+                      <div className="text-center py-12 text-slate-500">No data available.</div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -332,13 +379,13 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
               ) : (
                 <div className="space-y-4">
                   {approvals.length === 0 ? (
-                    <div className="text-center py-12 text-slate-500">No pending approvals.</div>
+                    <div className="text-center py-12 text-slate-500">No data available.</div>
                   ) : (
                     <div className="flex flex-col gap-4">
                       {approvals.map((req) => (
                         <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
+                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
                               {req.userName.charAt(0)}
                             </div>
                             <div className="flex flex-col">
@@ -347,7 +394,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                               <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0">
                             <button 
                               onClick={() => handleApproval(req.id, 'rejected')}
                               className="relative group overflow-hidden rounded-xl transition-all duration-300 transform active:scale-95"
@@ -389,9 +436,9 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-[#0F1115] border border-white/10 rounded-[2.5rem] shadow-2xl z-[101] overflow-hidden"
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-lg bg-[#0F1115] border border-white/10 rounded-[2.5rem] shadow-2xl z-[101] overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="p-8">
+              <div className="p-6 md:p-8">
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="text-2xl font-bold text-white">Request Leave</h2>
                   <button 
@@ -420,7 +467,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Date</label>
                       <div className="relative group">

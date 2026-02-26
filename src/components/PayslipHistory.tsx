@@ -94,7 +94,7 @@ export function PayslipHistory({ history, onSelect }: PayslipHistoryProps) {
           <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
             <Wallet className="w-8 h-8 text-slate-500" />
           </div>
-          <p className="text-slate-400 font-medium">No payslip history found.</p>
+          <p className="text-slate-400 font-medium">No data available.</p>
         </div>
       )}
     </div>
