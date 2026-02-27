@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
-import { Send, User, Mail, MessageSquare } from 'lucide-react';
+import { Send, User, Mail, MessageSquare, Loader2, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import React from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 export function Form() {
   const [formData, setFormData] = useState({
@@ -9,10 +10,39 @@ export function Form() {
     email: '',
     message: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("This feature will be updated later.");
+    setIsSubmitting(true);
+    setError(null);
+    setIsSuccess(false);
+
+    try {
+      const { error: submitError } = await supabase
+        .from('inquiries')
+        .insert([{
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+          status: 'Pending'
+        }]);
+
+      if (submitError) throw submitError;
+
+      setIsSuccess(true);
+      setFormData({ name: '', email: '', message: '' });
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => setIsSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Error submitting form:', err);
+      setError('Failed to submit your inquiry. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -25,9 +55,26 @@ export function Form() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 p-8"
+        className="bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 p-8 relative overflow-hidden"
       >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        {isSuccess && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-0 left-0 right-0 bg-emerald-500/20 border-b border-emerald-500/30 p-4 flex items-center justify-center gap-2 text-emerald-400 font-bold z-10"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            Message sent successfully!
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 mt-4">
+          {error && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-medium">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col gap-2">
               <label className="text-sm font-bold text-slate-300 ml-1">Full Name</label>
@@ -36,6 +83,7 @@ export function Form() {
                   <User className="w-5 h-5" />
                 </div>
                 <input 
+                  required
                   type="text" 
                   placeholder="John Doe"
                   value={formData.name}
@@ -52,6 +100,7 @@ export function Form() {
                   <Mail className="w-5 h-5" />
                 </div>
                 <input 
+                  required
                   type="email" 
                   placeholder="john@company.com"
                   value={formData.email}
@@ -69,6 +118,7 @@ export function Form() {
                 <MessageSquare className="w-5 h-5" />
               </div>
               <textarea 
+                required
                 rows={5}
                 placeholder="How can we help you?"
                 value={formData.message}
@@ -81,10 +131,20 @@ export function Form() {
           <div className="flex justify-end mt-2">
             <button 
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-600/25 border border-blue-400/20 flex items-center gap-2"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-600/25 border border-blue-400/20 flex items-center gap-2"
             >
-              <span>Send Message</span>
-              <Send className="w-4 h-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Sending...</span>
+                </>
+              ) : (
+                <>
+                  <span>Send Message</span>
+                  <Send className="w-4 h-4" />
+                </>
+              )}
             </button>
           </div>
         </form>

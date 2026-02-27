@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Filter, FileText, FileImage, FileCode, Download, Eye, MoreVertical, Folder, Clock, Upload, CheckSquare, X, CheckCircle, XCircle, Book, FileSignature, AlertCircle, File as FileIcon } from 'lucide-react';
+import { Search, Filter, FileText, FileImage, FileCode, Download, Eye, MoreVertical, Folder, Clock, Upload, CheckSquare, X, CheckCircle, XCircle, Book, FileSignature, AlertCircle, File as FileIcon, Loader2 } from 'lucide-react';
 import { Document, DocumentWithHistory } from '../types';
 import { cn } from '../lib/utils';
 import { useUser } from '../context/UserContext';
-import { useDocuments } from '../hooks/useDocuments';
+import { supabase } from '../lib/supabaseClient';
 
 const departments = ['HR', 'Event', 'Marketing', 'Finance', 'Legal'];
 
 export function Documents() {
   const { user } = useUser();
-  const { documents, isLoading, addDocument } = useDocuments();
+  const [documents, setDocuments] = useState<DocumentWithHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'Guidelines' | 'Templates' | 'Contracts'>('Guidelines');
   const [previewDoc, setPreviewDoc] = useState<DocumentWithHistory | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Upload Form State
   const [uploadForm, setUploadForm] = useState({
@@ -22,6 +25,62 @@ export function Documents() {
     category_type: 'Guideline' as Document['category_type'],
     department: 'Event'
   });
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true);
+      
+      const { data: docsData, error: docsError } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (docsError) throw docsError;
+
+      const { data: historyData, error: historyError } = await supabase
+        .from('document_history')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (historyError && historyError.code !== '42P01') {
+        console.error('Error fetching history:', historyError);
+      }
+
+      const formattedDocs: DocumentWithHistory[] = (docsData || []).map((doc: any) => ({
+        id: doc.id,
+        title: doc.title,
+        category_type: doc.category_type,
+        department: doc.department,
+        type: doc.type,
+        size: doc.size,
+        updatedAt: new Date(doc.updated_at || doc.created_at).toLocaleDateString(),
+        author: doc.author,
+        tags: doc.tags || [],
+        version: doc.version,
+        url: doc.url,
+        drive_folder_id: doc.drive_folder_id,
+        history: (historyData || [])
+          .filter((h: any) => h.document_id === doc.id)
+          .map((h: any) => ({
+            id: h.id,
+            document_id: h.document_id,
+            action: h.action,
+            user: h.user_name || h.user,
+            timestamp: new Date(h.created_at).toLocaleString()
+          }))
+      }));
+
+      setDocuments(formattedDocs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getBadge = (doc: Document) => {
     if (doc.category_type === 'Guideline') return { label: 'Guideline', className: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
@@ -41,33 +100,78 @@ export function Documents() {
     }
   };
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !selectedFile) return;
     
-    const newDoc: Document = {
-      id: `doc-${Date.now()}`,
-      title: uploadForm.title,
-      category_type: uploadForm.category_type,
-      department: uploadForm.department,
-      type: 'pdf',
-      size: '1.2 MB',
-      updatedAt: 'Just now',
-      author: user.name,
-      tags: [uploadForm.department, uploadForm.category_type],
-      version: 'v1.0',
-      url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-      drive_folder_id: `gdrive_${uploadForm.category_type.toLowerCase()}_${uploadForm.department.toLowerCase()}`,
-    };
+    setIsUploading(true);
+    try {
+      // 1. Upload to Supabase Storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
 
-    addDocument(newDoc, {
-      action: 'Uploaded',
-      user: user.name,
-      timestamp: 'Just now'
-    });
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile);
 
-    setIsUploadOpen(false);
-    setUploadForm({ title: '', category_type: 'Guideline', department: 'Event' });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      // 2. Insert into documents table
+      const newDoc = {
+        title: uploadForm.title,
+        category_type: uploadForm.category_type,
+        department: uploadForm.department,
+        type: fileExt === 'pdf' ? 'pdf' : 'doc',
+        size: `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`,
+        author: user.name,
+        tags: [uploadForm.department, uploadForm.category_type],
+        version: 'v1.0',
+        url: publicUrl,
+        drive_folder_id: `gdrive_${uploadForm.category_type.toLowerCase()}_${uploadForm.department.toLowerCase()}`,
+        created_at: new Date().toISOString()
+      };
+
+      const { data: insertedDoc, error: insertError } = await supabase
+        .from('documents')
+        .insert([newDoc])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // 3. Insert into document_history
+      const historyEntry = {
+        document_id: insertedDoc.id,
+        action: 'Uploaded',
+        user_name: user.name,
+        created_at: new Date().toISOString()
+      };
+
+      const { error: historyError } = await supabase
+        .from('document_history')
+        .insert([historyEntry]);
+
+      if (historyError) throw historyError;
+
+      // Refresh list
+      await fetchDocuments();
+      
+      // Reset form
+      setIsUploadOpen(false);
+      setUploadForm({ title: '', category_type: 'Guideline', department: 'Event' });
+      setSelectedFile(null);
+
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert('Failed to upload document. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const filteredDocs = documents.filter(doc => {
@@ -150,49 +254,59 @@ export function Documents() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {filteredDocs.map(doc => {
-                const badge = getBadge(doc);
-                return (
-                  <tr key={doc.id} className="hover:bg-white/5 transition-colors group">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {getFileIcon(doc.type, 'sm')}
-                        <div className="flex flex-col">
-                          <span className="font-bold text-white group-hover:text-blue-300 transition-colors cursor-pointer" onClick={() => setPreviewDoc(doc)}>
-                            {doc.title}
-                          </span>
-                          <span className="text-[10px] text-slate-500">{doc.size} • {doc.version}</span>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Loading documents...
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredDocs.length > 0 ? (
+                filteredDocs.map(doc => {
+                  const badge = getBadge(doc);
+                  return (
+                    <tr key={doc.id} className="hover:bg-white/5 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {getFileIcon(doc.type, 'sm')}
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white group-hover:text-blue-300 transition-colors cursor-pointer" onClick={() => setPreviewDoc(doc)}>
+                              {doc.title}
+                            </span>
+                            <span className="text-[10px] text-slate-500">{doc.size} • {doc.version}</span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", badge.className)}>
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-slate-300">{doc.department}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-slate-300">{doc.updatedAt}</span>
-                        <span className="text-[10px] text-slate-500">by {doc.author}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setPreviewDoc(doc)} className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Preview">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Download">
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredDocs.length === 0 && (
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", badge.className)}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-slate-300">{doc.department}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-slate-300">{doc.updatedAt}</span>
+                          <span className="text-[10px] text-slate-500">by {doc.author}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setPreviewDoc(doc)} className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Preview">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Download">
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
                     No data available.
@@ -210,7 +324,7 @@ export function Documents() {
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsUploadOpen(false)}
+              onClick={() => !isUploading && setIsUploadOpen(false)}
               className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
             />
             <motion.div 
@@ -221,7 +335,11 @@ export function Documents() {
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Upload className="w-5 h-5 text-blue-400" /> Smart Upload
                 </h2>
-                <button onClick={() => setIsUploadOpen(false)} className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
+                <button 
+                  onClick={() => setIsUploadOpen(false)} 
+                  disabled={isUploading}
+                  className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -248,6 +366,18 @@ export function Documents() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase">File Upload</label>
+                  <div className="relative group">
+                    <input 
+                      type="file" 
+                      required
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600"
+                    />
+                  </div>
+                </div>
+
                 {/* Smart Routing Info */}
                 <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3">
                   <Folder className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
@@ -257,10 +387,19 @@ export function Documents() {
                   </p>
                 </div>
 
-                {/* Assignment Fields for Contracts removed */}
-
-                <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)]">
-                  Upload Document
+                <button 
+                  type="submit" 
+                  disabled={isUploading || !selectedFile}
+                  className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] flex items-center justify-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    'Upload Document'
+                  )}
                 </button>
               </form>
             </motion.div>
