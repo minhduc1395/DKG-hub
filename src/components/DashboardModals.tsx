@@ -30,6 +30,12 @@ interface NewsModalProps {
 }
 
 export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
+  const [expandedId, setExpandedId] = useState<number | string | null>(null);
+
+  const toggleExpand = (id: number | string) => {
+    setExpandedId(expandedId === id ? null : id);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -58,35 +64,59 @@ export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
             </div>
             
             <div className="overflow-y-auto p-6 flex flex-col gap-4">
-              {news.map((item) => (
-                <div 
-                  key={item.id} 
-                  className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/5 transition-all group"
-                >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 uppercase tracking-wide">
-                        {item.type}
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white leading-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      {item.desc}
-                    </p>
-                    {item.file && (
-                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
-                        <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
-                          <FileText className="w-3 h-3 text-slate-300" />
-                        </div>
-                        <span className="text-xs font-medium text-slate-400">{item.file}</span>
+              {news.map((item) => {
+                const isExpanded = expandedId === item.id;
+                return (
+                  <div 
+                    key={item.id} 
+                    onClick={() => toggleExpand(item.id)}
+                    className={`p-5 rounded-2xl border transition-all group cursor-pointer ${
+                      isExpanded 
+                        ? 'bg-white/5 border-blue-500/30' 
+                        : 'bg-white/[0.02] border-white/5 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                          isExpanded ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-500/20 text-slate-400'
+                        }`}>
+                          {item.type}
+                        </span>
+                        <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
                       </div>
-                    )}
+                      <h3 className={`text-lg font-bold leading-tight ${
+                        isExpanded ? 'text-blue-300' : 'text-white group-hover:text-blue-300 transition-colors'
+                      }`}>
+                        {item.title}
+                      </h3>
+                      
+                      {isExpanded ? (
+                        // Full HTML Content
+                        <div 
+                          className="text-slate-300 text-sm leading-relaxed space-y-2 mt-2 pt-4 border-t border-white/10 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-white [&>h1]:mt-4 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-white [&>h2]:mt-3 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>a]:text-blue-400 [&>a]:underline [&>img]:rounded-xl [&>img]:mt-2 [&>img]:w-full [&>img]:object-cover [&>blockquote]:border-l-4 [&>blockquote]:border-blue-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-slate-400"
+                          dangerouslySetInnerHTML={{ __html: item.desc }}
+                          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking content
+                        />
+                      ) : (
+                        // Preview Content
+                        <p className="text-slate-400 text-sm leading-relaxed line-clamp-2">
+                          {item.desc.replace(/<[^>]*>?/gm, '')}
+                        </p>
+                      )}
+
+                      {item.file && (
+                        <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
+                          <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
+                            <FileText className="w-3 h-3 text-slate-300" />
+                          </div>
+                          <span className="text-xs font-medium text-slate-400">{item.file}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {news.length === 0 && (
                 <div className="text-center py-12 text-slate-500">
                   No data available.

@@ -33,12 +33,26 @@ export function Dashboard({ user, onAction }: DashboardProps) {
   const [showAllNews, setShowAllNews] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'personal' | 'company'>('all');
+  const [expandedNewsId, setExpandedNewsId] = useState<string | null>(null);
   
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [announcements, setAnnouncements] = useState<NewsItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [teamStatus, setTeamStatus] = useState({ onsite: 0, remote: 0, onLeave: 0 });
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // If clicking outside the news section, collapse expanded news
+      if (!target.closest('.news-item-container')) {
+        setExpandedNewsId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -49,81 +63,63 @@ export function Dashboard({ user, onAction }: DashboardProps) {
     try {
       const newNotifications: NotificationItem[] = [];
 
-      // 1. Fetch recent tasks assigned to user
-      const { data: tasks } = await supabase
-        .from('tasks')
+      // 1. Fetch Notifications from 'notifications' table
+      const { data: notificationsData } = await supabase
+        .from('notifications')
         .select('*')
-        .eq('assignee_id', user.id)
+        .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(10);
 
-      if (tasks) {
-        tasks.forEach(task => {
+      if (notificationsData) {
+        notificationsData.forEach((item: any) => {
+          let icon = Info;
+          let iconBg = 'bg-slate-500/20';
+          let iconColor = 'text-slate-400';
+
+          switch (item.category) {
+            case 'task':
+              icon = CheckSquare;
+              iconBg = 'bg-teal-500/20';
+              iconColor = 'text-teal-400';
+              break;
+            case 'payslip':
+              icon = FileText;
+              iconBg = 'bg-blue-500/20';
+              iconColor = 'text-blue-400';
+              break;
+            case 'time_off':
+              icon = CalendarIcon;
+              iconBg = 'bg-indigo-500/20';
+              iconColor = 'text-indigo-400';
+              break;
+            case 'system':
+              icon = Bell;
+              iconBg = 'bg-rose-500/20';
+              iconColor = 'text-rose-400';
+              break;
+            default:
+              break;
+          }
+
           newNotifications.push({
-            id: `task-${task.id}`,
-            icon: CheckSquare,
-            iconBg: 'bg-teal-500/20',
-            iconColor: 'text-teal-400',
-            title: 'Task Assigned',
-            desc: `You have been assigned to "${task.title}".`,
-            time: new Date(task.created_at).toLocaleDateString(),
-            category: 'task',
-            recipient_id: user.id
+            id: item.id,
+            icon: icon,
+            iconBg: iconBg,
+            iconColor: iconColor,
+            title: item.title,
+            desc: item.content,
+            time: new Date(item.created_at).toLocaleDateString(),
+            category: item.category as any,
+            recipient_id: item.recipient_id
           });
         });
       }
 
-      // 2. Fetch recent payslips
-      const payslips = await payslipService.getMyPayslips(user.id);
-      if (payslips.length > 0) {
-        const latestPayslip = payslips[0];
-        newNotifications.push({
-          id: `payslip-${latestPayslip.id}`,
-          icon: FileText,
-          iconBg: 'bg-blue-500/20',
-          iconColor: 'text-blue-400',
-          title: 'Payslip Available',
-          desc: `Your payslip for ${latestPayslip.month} ${latestPayslip.year} is available.`,
-          time: 'Recently',
-          category: 'system',
-          recipient_id: user.id
-        });
-      }
+      setNotifications(newNotifications);
 
-      // 3. Manager specific notifications
+      // 3. Manager specific notifications (Team Status only)
       if (isManager) {
-        // Pending Leave Requests
-        const pendingLeaves = await timeOffService.fetchPendingApprovals(user.id);
-        if (pendingLeaves.length > 0) {
-          newNotifications.push({
-            id: 'pending-leaves',
-            icon: Bell,
-            iconBg: 'bg-rose-500/20',
-            iconColor: 'text-rose-400',
-            title: 'Leave Approvals',
-            desc: `You have ${pendingLeaves.length} pending leave requests.`,
-            time: 'Now',
-            category: 'task',
-            recipient_id: user.id
-          });
-        }
-
-        // Pending Payslip Requests
-        const pendingPayslips = await payslipService.getPendingPayslips();
-        if (pendingPayslips.length > 0) {
-          newNotifications.push({
-            id: 'pending-payslips',
-            icon: ClipboardList,
-            iconBg: 'bg-emerald-500/20',
-            iconColor: 'text-emerald-400',
-            title: 'Payslip Approvals',
-            desc: `You have ${pendingPayslips.length} pending payslip approvals.`,
-            time: 'Now',
-            category: 'task',
-            recipient_id: user.id
-          });
-        }
-
         // Team Status (Onsite/Remote/On Leave)
         // This is an approximation based on today's data
         const todayStr = new Date().toISOString().split('T')[0];
@@ -150,10 +146,53 @@ export function Dashboard({ user, onAction }: DashboardProps) {
         });
       }
 
-      setNotifications(newNotifications);
-      // Announcements and Events are empty for now as requested
-      setAnnouncements([]);
-      setUpcomingEvents([]);
+      // 4. Fetch Company News ONLY from 'company_news' (Fetch 10 items for "See all")
+      const { data: newsData } = await supabase
+        .from('company_news')
+        .select('*')
+        .order('publish_date', { ascending: false })
+        .limit(10);
+
+      const combinedNews: NewsItem[] = [];
+
+      if (newsData) {
+        newsData.forEach((item: any) => {
+          // Handle both 'content' (new schema) and 'description' (old schema)
+          const content = item.content || item.description || '';
+          
+          combinedNews.push({
+            id: `news-${item.id}`,
+            title: item.title,
+            desc: content, 
+            date: new Date(item.publish_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            type: item.type || 'News',
+            file: item.file_url ? 'Attachment' : undefined
+          });
+        });
+      }
+
+      setAnnouncements(combinedNews);
+
+      // 5. Fetch Upcoming Events
+      const { data: eventsData } = await supabase
+        .from('events')
+        .select('*')
+        .gte('event_date', new Date().toISOString().split('T')[0]) // Only future or today's events
+        .order('event_date', { ascending: true })
+        .limit(3);
+
+      if (eventsData) {
+        const formattedEvents = eventsData.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          date: new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          time: event.start_time ? event.start_time.slice(0, 5) : 'All Day', // Extract HH:MM
+          location: event.location
+        }));
+        setUpcomingEvents(formattedEvents);
+      } else {
+        setUpcomingEvents([]);
+      }
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -356,36 +395,75 @@ export function Dashboard({ user, onAction }: DashboardProps) {
               )}
             </div>
             
-            <div className="flex flex-col gap-4">
-              {announcements.slice(0, 3).map((item) => (
-                <div 
-                  key={item.id} 
-                  className="p-5 rounded-2xl border border-white/5 hover:bg-white/5 transition-all group cursor-pointer"
-                >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 uppercase tracking-wide">
-                        {item.type}
-                      </span>
-                      <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white group-hover:text-blue-300 transition-colors leading-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      {item.desc}
-                    </p>
-                    {item.file && (
-                      <div className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5">
-                        <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
-                          <FileText className="w-3 h-3 text-slate-300" />
+            <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
+              {announcements.slice(0, 5).map((item, index) => {
+                const isFirst = index === 0;
+                const isExpanded = expandedNewsId === item.id;
+                
+                return (
+                  <div key={item.id} className="news-item-container">
+                    <div 
+                      onClick={() => setExpandedNewsId(isExpanded ? null : (item.id as string))}
+                      className={`p-5 rounded-2xl transition-all duration-300 group cursor-pointer border ${
+                        isExpanded 
+                          ? 'bg-white/10 border-indigo-500/40 shadow-lg shadow-indigo-500/10' 
+                          : 'border-white/5 hover:bg-white/5 hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                            isExpanded ? 'bg-indigo-500/20 text-indigo-300' : 'bg-blue-500/20 text-blue-300'
+                          }`}>
+                            {item.type}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
                         </div>
-                        <span className="text-xs font-medium text-slate-400">{item.file}</span>
+                        
+                        <h3 className={`text-lg font-bold leading-tight transition-colors ${
+                          isExpanded ? 'text-indigo-300' : 'text-white group-hover:text-blue-300'
+                        }`}>
+                          {item.title}
+                        </h3>
+                        
+                        {isExpanded ? (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="overflow-hidden"
+                          >
+                            <div 
+                              className="text-slate-300 text-sm leading-relaxed space-y-2 mt-2 pt-4 border-t border-white/10 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-white [&>h1]:mt-4 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-white [&>h2]:mt-3 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>a]:text-blue-400 [&>a]:underline [&>img]:rounded-xl [&>img]:mt-2 [&>img]:w-full [&>img]:object-cover [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-slate-400"
+                              dangerouslySetInnerHTML={{ __html: item.desc }}
+                              onClick={(e) => e.stopPropagation()} // Prevent collapsing when clicking content
+                            />
+                          </motion.div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-500 text-xs font-medium group-hover:text-blue-400 transition-colors">
+                            <Info className="w-3.5 h-3.5" />
+                            <span>Click to view details</span>
+                          </div>
+                        )}
+
+                        {item.file && (
+                          <div 
+                            className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5"
+                            onClick={(e) => e.stopPropagation()} // Prevent toggle when clicking file
+                          >
+                            <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
+                              <FileText className="w-3 h-3 text-slate-300" />
+                            </div>
+                            <span className="text-xs font-medium text-slate-400">{item.file}</span>
+                          </div>
+                        )}
                       </div>
+                    </div>
+                    {isFirst && announcements.length > 1 && (
+                      <div className="my-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {announcements.length === 0 && (
                 <div className="text-center py-12 text-slate-500">
                   No data available.
