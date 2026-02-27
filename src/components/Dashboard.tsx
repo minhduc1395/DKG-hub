@@ -226,9 +226,9 @@ export function Dashboard({ user, onAction }: DashboardProps) {
       <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full animate-in fade-in duration-500">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-          <div className="flex flex-col justify-between h-16 py-0.5">
-            <h1 className="text-white text-3xl md:text-4xl font-black tracking-tight leading-none">Welcome back, {user.name.split(' ')[0]} 👋</h1>
-            <p className="text-slate-400 text-base leading-none">Welcome back to DKG</p>
+          <div className="flex flex-col gap-1 py-0.5">
+            <h1 className="text-white text-2xl md:text-4xl font-black tracking-tight leading-tight">Welcome back, {user.name.split(' ')[0]}</h1>
+            <p className="text-slate-400 text-sm md:text-base leading-none">Welcome back to DKG</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Today:</span>

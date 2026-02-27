@@ -12,7 +12,10 @@ import {
   X,
   Send,
   CheckSquare,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Flag,
+  Pencil
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
@@ -53,10 +56,12 @@ export function Tasks({ user }: TasksProps) {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [requestedDeadline, setRequestedDeadline] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'my-tasks' | 'assigned'>('my-tasks');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [cancelledTaskIds, setCancelledTaskIds] = useState<Set<string>>(new Set());
   const [dirtyTaskIds, setDirtyTaskIds] = useState<Set<string>>(new Set());
+  const [editingDeadlineTaskId, setEditingDeadlineTaskId] = useState<string | null>(null);
+  const [expandedDescriptionTaskIds, setExpandedDescriptionTaskIds] = useState<Set<string>>(new Set());
+  const [editingTaskIds, setEditingTaskIds] = useState<Set<string>>(new Set());
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -278,6 +283,11 @@ export function Tasks({ user }: TasksProps) {
         next.delete(id);
         return next;
       });
+      setEditingTaskIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (err: any) {
       console.error('Error saving task:', err);
       setError('Failed to save task changes.');
@@ -309,8 +319,7 @@ export function Tasks({ user }: TasksProps) {
     if (cancelledTaskIds.has(t.id)) return false;
     const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           t.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTab = activeTab === 'my-tasks' ? t.assigneeId === user.id : t.assignerId === user.id;
-    return matchesSearch && matchesTab;
+    return matchesSearch;
   });
 
   const handleCancelTask = (id: string) => {
@@ -350,11 +359,11 @@ export function Tasks({ user }: TasksProps) {
   };
 
   const handleDeadlineChange = async (task: Task, newDate: string) => {
-    if (activeTab === 'my-tasks') {
-      // Direct update for My Tasks as requested
+    if (task.assigneeId === user.id) {
+      // Direct update for My Tasks
       updateTaskField(task.id, 'deadline', newDate);
     } else {
-      // Request approval for Assigned to Others as requested
+      // Request approval for Assigned to Others
       try {
         const message = `Requested deadline change to ${formatDate(newDate)}`;
         const { error } = await supabase
@@ -429,26 +438,6 @@ export function Tasks({ user }: TasksProps) {
         </div>
         
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
-            <button 
-              onClick={() => setActiveTab('my-tasks')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
-                activeTab === 'my-tasks' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
-              )}
-            >
-              My Tasks
-            </button>
-            <button 
-              onClick={() => setActiveTab('assigned')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none whitespace-nowrap",
-                activeTab === 'assigned' ? "bg-blue-500 text-white shadow-lg" : "text-slate-400 hover:text-white"
-              )}
-            >
-              Assigned to Others
-            </button>
-          </div>
           <div className="relative group w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-400 transition-colors z-10" />
             <input 
@@ -483,13 +472,13 @@ export function Tasks({ user }: TasksProps) {
       ) : (
         <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pb-32">
           {/* Table Header */}
-          <div className="hidden lg:grid grid-cols-[48px_1fr_110px_110px_130px_180px_80px] gap-4 px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
-            <div className="flex justify-center">#</div>
+          <div className="hidden lg:grid grid-cols-[100px_1fr_110px_110px_130px_180px_80px] gap-4 px-0 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+            <div className="flex justify-center">Type</div>
             <div>Task Details</div>
             <div className="text-center">Status</div>
             <div className="text-center">Priority</div>
             <div className="text-center">Deadline</div>
-            <div>{activeTab === 'my-tasks' ? 'Assigner' : 'Assignee'}</div>
+            <div>People</div>
             <div className="text-right pr-2">Actions</div>
           </div>
 
@@ -501,79 +490,205 @@ export function Tasks({ user }: TasksProps) {
               transition={{ delay: index * 0.05 }}
               key={task.id} 
               className={cn(
-                "bg-white/5 border border-white/10 rounded-2xl lg:rounded-none lg:bg-transparent lg:border-0 lg:border-b lg:border-white/5 p-5 lg:p-0 lg:px-6 lg:py-5 flex flex-col lg:grid lg:grid-cols-[48px_1fr_110px_110px_130px_180px_80px] lg:items-center gap-4 hover:bg-white/[0.03] transition-colors group relative",
+                "flex flex-col lg:grid lg:grid-cols-[100px_1fr_130px_130px_140px_200px_120px] items-start lg:items-center gap-3 lg:gap-4 p-4 lg:p-0 lg:px-0 lg:py-5 border-b border-white/5 lg:border-0 lg:border-b transition-all duration-200 group relative hover:bg-white/[0.02] lg:hover:bg-white/[0.08] lg:hover:shadow-lg lg:hover:scale-[1.002]",
                 openDropdownId?.startsWith(task.id) ? "z-50" : "z-0"
               )}
             >
-              {/* Column 1: Icon/Checkbox */}
-              <div className="hidden lg:flex justify-center items-center">
-                {task.status === 'Done' ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                ) : (
-                  <div className="w-5 h-5 rounded-md border-2 border-slate-700 group-hover:border-slate-500 transition-colors" />
-                )}
-              </div>
+              <div className="flex flex-row items-start gap-3 w-full lg:contents">
+                {/* Mobile Status Indicator (Left) */}
+                <div className="lg:hidden shrink-0 mt-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextStatus = task.status === 'Done' ? 'Todo' : 'Done';
+                      updateTaskStatus(task.id, nextStatus);
+                    }}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      task.status === 'Done' 
+                        ? "bg-emerald-500 border-emerald-500 text-white" 
+                        : "border-slate-500 hover:border-blue-400"
+                    )}
+                  >
+                    {task.status === 'Done' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
 
-              {/* Column 2: Details */}
-              <div className="flex flex-col justify-center min-w-0">
-                <div className="flex items-center gap-2 lg:hidden mb-3">
-                  <div className="relative">
-                    <button
-                      onClick={() => setOpenDropdownId(openDropdownId === task.id + '-mobile' ? null : task.id + '-mobile')}
-                      className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all active:scale-95", getStatusColor(task.status))}
+                {/* Column 1: Type Badge */}
+                <div className="hidden lg:flex justify-center items-center col-span-1 lg:col-span-1">
+                  {task.assigneeId === user.id ? (
+                    <span className="px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black uppercase tracking-wider">
+                      My Task
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[9px] font-black uppercase tracking-wider">
+                      Assigned
+                    </span>
+                  )}
+                </div>
+
+                {/* Column 2: Details */}
+                <div className="flex-1 min-w-0 flex flex-col gap-1 lg:col-span-1 lg:order-none mt-0 lg:mt-0">
+                  {task.assignerId === user.id && editingTaskIds.has(task.id) ? (
+                    <div className="flex flex-col gap-1.5 w-full group/details">
+                      <input 
+                        type="text"
+                        value={task.title}
+                        onChange={(e) => updateTaskField(task.id, 'title', e.target.value)}
+                        className="bg-transparent text-white font-bold text-lg lg:text-xl leading-tight focus:outline-none focus:bg-white/10 rounded px-2 py-1 -ml-2 border-none transition-colors w-full"
+                        placeholder="Task Title"
+                        autoFocus
+                      />
+                      <textarea 
+                        value={task.description}
+                        onChange={(e) => updateTaskField(task.id, 'description', e.target.value)}
+                        className="bg-transparent text-slate-400 text-base group-hover/details:text-slate-300 transition-colors focus:outline-none focus:bg-white/10 rounded px-2 py-1 -ml-2 border-none resize-none h-auto min-h-[1.5rem] overflow-hidden w-full"
+                        placeholder="Add description..."
+                        rows={3}
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      className="flex flex-col gap-1 w-full cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedDescriptionTaskIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(task.id)) {
+                            next.delete(task.id);
+                          } else {
+                            next.add(task.id);
+                          }
+                          return next;
+                        });
+                      }}
                     >
-                      {task.status}
-                    </button>
-                    
-                    <AnimatePresence>
-                      {openDropdownId === task.id + '-mobile' && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute left-0 top-full mt-2 w-40 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
-                          >
-                            <div className="p-1 flex flex-col">
-                              {['Todo', 'In Progress', 'Review', 'Done'].map((status) => (
-                                <button
-                                  key={status}
-                                  onClick={() => {
-                                    updateTaskStatus(task.id, status as Task['status']);
-                                    setOpenDropdownId(null);
-                                  }}
-                                  className={cn(
-                                    "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
-                                    task.status === status ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
-                                  )}
-                                >
-                                  {status}
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
+                      <h3 className={cn("text-white font-bold text-lg lg:text-xl leading-tight group-hover:text-blue-400 transition-colors break-words", task.status === 'Done' && "line-through opacity-50")}>{task.title}</h3>
+                      <p 
+                        className={cn(
+                          "text-slate-400 text-base group-hover:text-slate-300 transition-colors break-words", 
+                          expandedDescriptionTaskIds.has(task.id) ? "" : "line-clamp-1"
+                        )}
+                      >
+                        {(task.description || '').split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
+                          part.match(/https?:\/\/[^\s]+/) ? (
+                            <a 
+                              key={i} 
+                              href={part} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-blue-400 hover:underline relative z-10 hover:text-blue-300"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {part}
+                            </a>
+                          ) : part
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Mobile Metadata Row */}
+                  <div className="lg:hidden flex flex-wrap items-center gap-3 mt-1 text-[10px] text-slate-500">
+                    {/* Deadline */}
+                    <div className="flex items-center gap-1">
+                      <Clock className={cn("w-3 h-3", new Date(task.deadline) < new Date() && task.status !== 'Done' ? "text-rose-400" : "text-slate-500")} />
+                      <span className={cn(new Date(task.deadline) < new Date() && task.status !== 'Done' ? "text-rose-400 font-bold" : "")}>
+                        {formatDate(task.deadline)}
+                      </span>
+                    </div>
+
+                    {/* Priority */}
+                    <div className="flex items-center gap-1">
+                      <Flag className={cn("w-3 h-3", 
+                        task.priority === 'High' ? "text-rose-400" : 
+                        task.priority === 'Medium' ? "text-amber-400" : "text-blue-400"
+                      )} />
+                      <span className={cn("font-medium",
+                        task.priority === 'High' ? "text-rose-400" : 
+                        task.priority === 'Medium' ? "text-amber-400" : "text-blue-400"
+                      )}>{task.priority}</span>
+                    </div>
+
+                    {/* Assignee */}
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[8px] text-white">
+                        {(task.assigneeId === user.id ? task.assignerName : task.assigneeName).charAt(0)}
+                      </div>
+                      <span>{task.assigneeId === user.id ? 'Me' : employees.find(e => e.id === task.assigneeId)?.name || 'Unknown'}</span>
+                    </div>
                   </div>
-                  
+                </div>
+
+                {/* Column 3: Status */}
+                <div className="hidden lg:flex justify-center items-center relative col-span-1 lg:col-span-1 order-4 lg:order-none">
+                  <button
+                    onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
+                    className={cn(
+                      "px-4 py-2 rounded-full text-xs font-bold border transition-all hover:scale-105 active:scale-95 w-full lg:w-auto min-w-[100px] text-center",
+                      getStatusColor(task.status)
+                    )}
+                  >
+                    {task.status}
+                  </button>
+
+                  <AnimatePresence>
+                    {openDropdownId === task.id && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40"
+                          onClick={() => setOpenDropdownId(null)}
+                        />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                          className="absolute right-0 top-full mt-2 w-40 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
+                        >
+                          <div className="p-1 flex flex-col">
+                            {['Todo', 'In Progress', 'Review', 'Done'].map((status) => (
+                              <button
+                                key={status}
+                                onClick={() => {
+                                  updateTaskStatus(task.id, status as Task['status']);
+                                  setOpenDropdownId(null);
+                                }}
+                                className={cn(
+                                  "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
+                                  task.status === status ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
+                                )}
+                              >
+                                {status}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Column 4: Priority */}
+                <div className="hidden lg:flex justify-center items-center relative col-span-1 lg:col-span-1 order-4 lg:order-none">
                   {task.assignerId === user.id ? (
-                    <div className="relative">
+                    <>
                       <button
-                        onClick={() => setOpenDropdownId(openDropdownId === task.id + '-priority-mobile' ? null : task.id + '-priority-mobile')}
-                        className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all active:scale-95", getPriorityColor(task.priority))}
+                        onClick={() => setOpenDropdownId(openDropdownId === task.id + '-priority' ? null : task.id + '-priority')}
+                        className={cn(
+                          "px-4 py-2 rounded-full text-xs font-bold border transition-all hover:scale-105 active:scale-95 w-full lg:w-auto min-w-[100px] text-center",
+                          getPriorityColor(task.priority)
+                        )}
                       >
                         {task.priority}
                       </button>
                       <AnimatePresence>
-                        {openDropdownId === task.id + '-priority-mobile' && (
+                        {openDropdownId === task.id + '-priority' && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
                             <motion.div 
-                              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                              initial={{ opacity: 0, scale: 0.95, y: -10 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -10 }}
                               className="absolute left-0 top-full mt-2 w-32 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
                             >
                               <div className="p-1 flex flex-col">
@@ -597,249 +712,218 @@ export function Tasks({ user }: TasksProps) {
                           </>
                         )}
                       </AnimatePresence>
-                    </div>
-                  ) : (
-                    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", getPriorityColor(task.priority))}>
-                      {task.priority}
-                    </span>
-                  )}
-                </div>
-
-                {task.assignerId === user.id ? (
-                  <div className="flex flex-row items-center gap-4 w-full group/details">
-                    <input 
-                      type="text"
-                      value={task.title}
-                      onChange={(e) => updateTaskField(task.id, 'title', e.target.value)}
-                      className="bg-transparent text-white font-bold text-sm lg:text-base leading-tight focus:outline-none focus:bg-white/10 rounded px-2 py-1 -ml-2 border-none transition-colors w-1/3 shrink-0"
-                      placeholder="Task Title"
-                    />
-                    <div className="h-4 w-px bg-white/10 hidden lg:block shrink-0" />
-                    <textarea 
-                      value={task.description}
-                      onChange={(e) => updateTaskField(task.id, 'description', e.target.value)}
-                      className="bg-transparent text-slate-400 text-xs group-hover/details:text-slate-300 transition-colors focus:outline-none focus:bg-white/10 rounded px-2 py-1 -ml-2 border-none resize-none h-6 overflow-hidden w-full flex-1"
-                      placeholder="Add description..."
-                    />
-                  </div>
-                ) : (
-                  <div className="flex flex-row items-baseline gap-4 w-full">
-                    <h3 className="text-white font-bold text-sm lg:text-base leading-tight group-hover:text-blue-400 transition-colors shrink-0 max-w-[40%] truncate">{task.title}</h3>
-                    <p className="text-slate-400 text-xs group-hover:text-slate-300 transition-colors truncate flex-1">{task.description}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Column 3: Status (Desktop) */}
-              <div className="hidden lg:flex justify-center items-center relative">
-                <button
-                  onClick={() => setOpenDropdownId(openDropdownId === task.id ? null : task.id)}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 active:scale-95 min-w-[85px]",
-                    getStatusColor(task.status)
-                  )}
-                >
-                  {task.status}
-                </button>
-
-                <AnimatePresence>
-                  {openDropdownId === task.id && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-40"
-                        onClick={() => setOpenDropdownId(null)}
-                      />
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                        className="absolute right-0 top-full mt-2 w-40 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
-                      >
-                        <div className="p-1 flex flex-col">
-                          {['Todo', 'In Progress', 'Review', 'Done'].map((status) => (
-                            <button
-                              key={status}
-                              onClick={() => {
-                                updateTaskStatus(task.id, status as Task['status']);
-                                setOpenDropdownId(null);
-                              }}
-                              className={cn(
-                                "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
-                                task.status === status ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
-                              )}
-                            >
-                              {status}
-                            </button>
-                          ))}
-                        </div>
-                      </motion.div>
                     </>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Column 4: Priority (Desktop) */}
-              <div className="hidden lg:flex justify-center items-center relative">
-                {task.assignerId === user.id ? (
-                  <>
-                    <button
-                      onClick={() => setOpenDropdownId(openDropdownId === task.id + '-priority' ? null : task.id + '-priority')}
-                      className={cn(
-                        "px-3.5 py-1.5 rounded-full text-[10px] font-bold border transition-all hover:scale-105 active:scale-95 min-w-[85px]",
-                        getPriorityColor(task.priority)
-                      )}
-                    >
-                      {task.priority}
-                    </button>
-                    <AnimatePresence>
-                      {openDropdownId === task.id + '-priority' && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute left-0 top-full mt-2 w-32 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
-                          >
-                            <div className="p-1 flex flex-col">
-                              {['Low', 'Medium', 'High'].map((p) => (
-                                <button
-                                  key={p}
-                                  onClick={() => {
-                                    updateTaskField(task.id, 'priority', p);
-                                    setOpenDropdownId(null);
-                                  }}
-                                  className={cn(
-                                    "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
-                                    task.priority === p ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
-                                  )}
-                                >
-                                  {p}
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </>
-                ) : (
-                  <span className={cn("px-3.5 py-1.5 rounded-full text-[10px] font-bold border inline-block text-center min-w-[85px]", getPriorityColor(task.priority))}>
-                    {task.priority}
-                  </span>
-                )}
-              </div>
-
-              {/* Column 5: Deadline */}
-              <div className="flex items-center justify-center text-slate-400 text-xs">
-                <div className="relative flex justify-center items-center group/date w-full h-10">
-                  <span className={cn(
-                    "font-bold text-center transition-colors px-3 py-1.5 rounded-lg group-hover/date:bg-white/10 z-10 whitespace-nowrap flex items-center gap-1.5 pointer-events-none",
-                    new Date(task.deadline) < new Date() && task.status !== 'Done' ? "text-rose-400" : "lg:text-slate-300"
-                  )}>
-                    {formatDate(task.deadline)}
-                    {task.feedback?.status === 'Pending' && task.feedback.message.includes('deadline') && (
-                      <Clock className="w-3 h-3 text-amber-400 animate-pulse" />
-                    )}
-                  </span>
-                  <input 
-                    type="date"
-                    value={toInputDate(task.deadline)}
-                    onChange={(e) => handleDeadlineChange(task, e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                  />
-                </div>
-              </div>
-
-              {/* Column 6: Assignee/Assigner */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-[11px] font-black text-white shadow-lg shrink-0">
-                  {(activeTab === 'my-tasks' ? task.assignerName : task.assigneeName).charAt(0)}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  {activeTab === 'assigned' ? (
-                    <select
-                      value={task.assigneeId}
-                      onChange={(e) => updateTaskAssignee(task.id, e.target.value)}
-                      className="bg-transparent text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer focus:outline-none [color-scheme:dark] border border-white/10 rounded px-2 py-1 max-w-[140px] truncate"
-                    >
-                      <option value={user.id} className="bg-[#1A1D24]">Me</option>
-                      {employees.filter(e => e.id !== user.id).map(emp => (
-                        <option key={emp.id} value={emp.id} className="bg-[#1A1D24]">{emp.name}</option>
-                      ))}
-                    </select>
                   ) : (
-                    <span className="text-xs font-bold text-white truncate">
-                      {task.assignerName}
+                    <span className={cn("px-4 py-2 rounded-full text-xs font-bold border inline-block text-center w-full lg:w-auto min-w-[100px]", getPriorityColor(task.priority))}>
+                      {task.priority}
                     </span>
                   )}
                 </div>
-              </div>
 
-              {/* Column 7: Actions */}
-              <div className="flex items-center justify-end gap-3 pr-2">
-                <button 
-                  onClick={() => saveTask(task.id)}
-                  disabled={!dirtyTaskIds.has(task.id)}
-                  className={cn(
-                    "p-2 rounded-xl transition-all hover:scale-110 active:scale-90",
-                    dirtyTaskIds.has(task.id) 
-                      ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]" 
-                      : "bg-white/5 text-slate-500 opacity-50 cursor-not-allowed"
+                {/* Column 5: Deadline */}
+                <div className="hidden lg:flex items-center justify-center text-slate-400 text-sm col-span-1 lg:col-span-1 order-5 lg:order-none">
+                  <div className="relative flex justify-center items-center group/date w-full h-10">
+                    {editingDeadlineTaskId === task.id ? (
+                      <input 
+                        type="date"
+                        autoFocus
+                        value={toInputDate(task.deadline)}
+                        onChange={(e) => {
+                          handleDeadlineChange(task, e.target.value);
+                          setEditingDeadlineTaskId(null);
+                        }}
+                        onBlur={() => setEditingDeadlineTaskId(null)}
+                        className="bg-slate-900 text-white font-bold text-sm px-2 py-1.5 rounded-lg border-2 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] outline-none z-50 min-w-[130px] text-center [color-scheme:dark]"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingDeadlineTaskId(task.id)}
+                        className={cn(
+                          "font-bold text-center transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10 z-10 whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
+                          new Date(task.deadline) < new Date() && task.status !== 'Done' ? "text-rose-400" : "lg:text-slate-300"
+                        )}
+                      >
+                        {formatDate(task.deadline)}
+                        {task.feedback?.status === 'Pending' && task.feedback.message.includes('deadline') && (
+                          <Clock className="w-3 h-3 text-amber-400 animate-pulse" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 6: Assignee/Assigner */}
+                <div className="hidden lg:flex items-center justify-start gap-3 min-w-0 col-span-1 lg:col-span-1 order-5 lg:order-none">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-sm font-black text-white shadow-lg shrink-0">
+                    {(task.assigneeId === user.id ? task.assignerName : task.assigneeName).charAt(0)}
+                  </div>
+                  <div className="flex flex-col min-w-0 justify-center">
+                    {task.assignerId === user.id ? (
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdownId(openDropdownId === `${task.id}-assignee` ? null : `${task.id}-assignee`);
+                          }}
+                          className="flex items-center gap-1.5 text-sm font-bold text-blue-400 hover:text-blue-300 transition-colors group/assignee"
+                        >
+                          <span className="truncate max-w-[140px]">
+                            {task.assigneeId === user.id ? 'Me' : employees.find(e => e.id === task.assigneeId)?.name || 'Unknown'}
+                          </span>
+                          <ChevronDown className="w-4 h-4 opacity-50 group-hover/assignee:opacity-100 transition-opacity" />
+                        </button>
+
+                        <AnimatePresence>
+                          {openDropdownId === `${task.id}-assignee` && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownId(null)} />
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                                className="absolute left-0 top-full mt-2 w-64 bg-[#0F1115]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-50 overflow-hidden ring-1 ring-white/5"
+                              >
+                                <div className="p-2 border-b border-white/5 mb-1">
+                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-2">Assign To</p>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto custom-scrollbar p-1 space-y-0.5">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateTaskAssignee(task.id, user.id);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-2 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-3 group/item",
+                                      task.assigneeId === user.id 
+                                        ? "bg-blue-500/20 text-blue-400" 
+                                        : "text-slate-400 hover:bg-white/5 hover:text-white"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "w-8 h-8 rounded-full flex items-center justify-center text-xs shadow-sm transition-transform group-hover/item:scale-110",
+                                      task.assigneeId === user.id ? "bg-blue-500 text-white" : "bg-slate-700 text-slate-300"
+                                    )}>
+                                      M
+                                    </div>
+                                    <span>Me</span>
+                                    {task.assigneeId === user.id && <CheckCircle2 className="w-4 h-4 ml-auto" />}
+                                  </button>
+                                  {employees.filter(e => e.id !== user.id).map(emp => (
+                                    <button
+                                      key={emp.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateTaskAssignee(task.id, emp.id);
+                                        setOpenDropdownId(null);
+                                      }}
+                                      className={cn(
+                                        "w-full text-left px-2 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-3 group/item",
+                                        task.assigneeId === emp.id 
+                                          ? "bg-blue-500/20 text-blue-400" 
+                                          : "text-slate-400 hover:bg-white/5 hover:text-white"
+                                      )}
+                                    >
+                                      <div className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center text-xs shadow-sm transition-transform group-hover/item:scale-110",
+                                        task.assigneeId === emp.id ? "bg-blue-500 text-white" : "bg-slate-700 text-slate-300"
+                                      )}>
+                                        {emp.name.charAt(0)}
+                                      </div>
+                                      <span className="truncate">{emp.name}</span>
+                                      {task.assigneeId === emp.id && <CheckCircle2 className="w-4 h-4 ml-auto" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            </>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-bold text-white truncate">
+                        {task.assignerName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Column 7: Actions */}
+                <div className="flex items-center justify-end gap-3 pr-2 col-span-1 lg:col-span-1 order-2 lg:order-none shrink-0">
+                  {task.assignerId === user.id && !editingTaskIds.has(task.id) && (
+                    <button 
+                      onClick={() => setEditingTaskIds(prev => new Set(prev).add(task.id))}
+                      className="p-2.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
+                      title="Edit Task"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
                   )}
-                  title={dirtyTaskIds.has(task.id) ? "Save Changes" : "No changes to save"}
-                >
-                  <CheckSquare className="w-4 h-4" />
-                </button>
 
-                {task.assignerId !== user.id && (
                   <button 
-                    onClick={() => setSelectedTask(task)}
-                    className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
-                    title="Send Feedback / Request Extension"
+                    onClick={() => saveTask(task.id)}
+                    disabled={!dirtyTaskIds.has(task.id)}
+                    className={cn(
+                      "p-2.5 rounded-xl transition-all hover:scale-110 active:scale-90",
+                      dirtyTaskIds.has(task.id) 
+                        ? "bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]" 
+                        : "bg-white/5 text-slate-500 opacity-50 cursor-not-allowed"
+                    )}
+                    title={dirtyTaskIds.has(task.id) ? "Save Changes" : "No changes to save"}
                   >
-                    <MessageSquare className="w-4 h-4" />
+                    <CheckSquare className="w-5 h-5" />
                   </button>
-                )}
-                
-                <button 
-                  onClick={() => handleCancelTask(task.id)}
-                  className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
-                  title="Cancel Task (UI only)"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
 
-              {/* Feedback Status (Mobile/Desktop Overlay) */}
+                  {task.assignerId !== user.id && (
+                    <button 
+                      onClick={() => setSelectedTask(task)}
+                      className="p-2.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
+                      title="Send Feedback / Request Extension"
+                    >
+                      <MessageSquare className="w-5 h-5" />
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={() => handleCancelTask(task.id)}
+                    className="p-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
+                    title="Cancel Task (UI only)"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>   {/* Feedback Status (Integrated Row) */}
               {task.feedback && (
                 <div className={cn(
-                  "lg:absolute lg:left-[40px] lg:right-[40px] lg:bottom-0 lg:translate-y-1/2 mt-2 lg:mt-0 p-3 rounded-xl text-[10px] border z-10 shadow-xl backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3",
-                  task.feedback.status === 'Pending' ? "bg-amber-500/10 border-amber-500/20 text-amber-200/70" :
-                  task.feedback.status === 'Approved' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200/70" :
-                  "bg-rose-500/10 border-rose-500/20 text-rose-200/70"
+                  "col-span-2 lg:col-span-full mt-2 lg:mt-0 pt-3 lg:pt-2 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 order-last",
+                  task.feedback.status === 'Pending' ? "text-amber-400/90" :
+                  task.feedback.status === 'Approved' ? "text-emerald-400/90" :
+                  "text-rose-400/90"
                 )}>
-                  <div className="flex items-center gap-1.5 font-bold">
-                    {task.feedback.status === 'Pending' && <Clock className="w-3 h-3 text-amber-400" />}
-                    {task.feedback.status === 'Approved' && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
-                    {task.feedback.status === 'Rejected' && <X className="w-3 h-3 text-rose-400" />}
-                    <span className="uppercase tracking-wider opacity-60 mr-1">Request:</span>
-                    <span className="font-normal italic">"{task.feedback.message}"</span>
+                  <div className="flex items-center gap-2 text-[10px] font-medium pl-2">
+                    {task.feedback.status === 'Pending' && <Clock className="w-3 h-3 shrink-0" />}
+                    {task.feedback.status === 'Approved' && <CheckCircle2 className="w-3 h-3 shrink-0" />}
+                    {task.feedback.status === 'Rejected' && <X className="w-3 h-3 shrink-0" />}
+                    
+                    <span className="uppercase tracking-wider opacity-70 text-[9px]">
+                      {task.feedback.status === 'Pending' ? 'Request:' : `Request ${task.feedback.status}:`}
+                    </span>
+                    <span className="italic opacity-90 text-white">"{task.feedback.message}"</span>
                   </div>
 
                   {task.feedback.status === 'Pending' && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pr-2">
                       <button 
                         onClick={() => handleFeedbackAction(task.id, 'Approved')}
-                        className="px-3 py-1 bg-emerald-500 text-white rounded-lg font-black uppercase tracking-tighter hover:bg-emerald-600 transition-colors"
+                        className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
                       >
-                        Approve
+                        <CheckCircle2 className="w-3 h-3" /> Approve
                       </button>
                       <button 
                         onClick={() => handleFeedbackAction(task.id, 'Rejected')}
-                        className="px-3 py-1 bg-rose-500 text-white rounded-lg font-black uppercase tracking-tighter hover:bg-rose-600 transition-colors"
+                        className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
                       >
-                        Reject
+                        <X className="w-3 h-3" /> Reject
                       </button>
                     </div>
                   )}
