@@ -240,39 +240,107 @@ export function Dashboard({ user, onAction }: DashboardProps) {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Notifications & Team Status - Moved to top on mobile */}
-          <div className="order-1 lg:order-2 lg:col-span-1 flex flex-col gap-6">
-            {isManager && (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
-              >
-                 <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2 text-teal-400">
-                    <Users className="w-5 h-5" />
-                    <span className="text-sm font-bold uppercase tracking-wider">Team Status</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
-                    <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">{teamStatus.onsite}</span>
-                      <span className="text-xs text-slate-400 font-bold uppercase">Onsite</span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">{teamStatus.remote}</span>
-                      <span className="text-xs text-slate-400 font-bold uppercase">Remote</span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">{teamStatus.onLeave}</span>
-                      <span className="text-xs text-slate-400 font-bold uppercase">On Leave</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+          {/* Company News - Moved to top on mobile */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="order-1 lg:order-1 lg:col-span-2 relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2 text-blue-300">
+                <Newspaper className="w-5 h-5" />
+                <span className="text-sm font-bold uppercase tracking-wider">What's new today?</span>
+              </div>
+              {announcements.length > 0 && (
+                <button 
+                  onClick={() => setShowAllNews(true)}
+                  className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                >
+                  See all
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-4">
+              {announcements.slice(0, 5).map((item, index) => {
+                const isFirst = index === 0;
+                const isExpanded = expandedNewsId === item.id;
+                
+                return (
+                  <div key={item.id} className="news-item-container">
+                    <div 
+                      onClick={() => setExpandedNewsId(isExpanded ? null : (item.id as string))}
+                      className={`p-5 rounded-2xl transition-all duration-300 group cursor-pointer border ${
+                        isExpanded 
+                          ? 'bg-white/10 border-indigo-500/40 shadow-lg shadow-indigo-500/10' 
+                          : 'border-white/5 hover:bg-white/5 hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                            isExpanded ? 'bg-indigo-500/20 text-indigo-300' : 'bg-blue-500/20 text-blue-300'
+                          }`}>
+                            {item.type}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
+                        </div>
+                        
+                        <h3 className={`text-lg font-bold leading-tight transition-colors ${
+                          isExpanded ? 'text-indigo-300' : 'text-white group-hover:text-blue-300'
+                        }`}>
+                          {item.title}
+                        </h3>
+                        
+                        {isExpanded ? (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="overflow-hidden"
+                          >
+                            <div 
+                              className="text-slate-300 text-sm leading-relaxed space-y-2 mt-2 pt-4 border-t border-white/10 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-white [&>h1]:mt-4 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-white [&>h2]:mt-3 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>a]:text-blue-400 [&>a]:underline [&>img]:rounded-xl [&>img]:mt-2 [&>img]:w-full [&>img]:object-cover [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-slate-400"
+                              dangerouslySetInnerHTML={{ __html: item.desc }}
+                              onClick={(e) => e.stopPropagation()} // Prevent collapsing when clicking content
+                            />
+                          </motion.div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-500 text-xs font-medium group-hover:text-blue-400 transition-colors">
+                            <Info className="w-3.5 h-3.5" />
+                            <span>Click to view details</span>
+                          </div>
+                        )}
 
+                        {item.file && (
+                          <div 
+                            className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5"
+                            onClick={(e) => e.stopPropagation()} // Prevent toggle when clicking file
+                          >
+                            <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
+                              <FileText className="w-3 h-3 text-slate-300" />
+                            </div>
+                            <span className="text-xs font-medium text-slate-400">{item.file}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {isFirst && announcements.length > 1 && (
+                      <div className="my-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    )}
+                  </div>
+                );
+              })}
+              {announcements.length === 0 && (
+                <div className="text-center py-12 text-slate-500">
+                  No data available.
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Notifications & Team Status - Team Status moved to bottom on mobile */}
+          <div className="order-2 lg:order-2 lg:col-span-1 flex flex-col gap-6">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -371,106 +439,38 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                 </div>
               </div>
             </motion.div>
-          </div>
 
-          {/* Company News - Moved to bottom on mobile */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="order-2 lg:order-1 lg:col-span-2 relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2 text-blue-300">
-                <Newspaper className="w-5 h-5" />
-                <span className="text-sm font-bold uppercase tracking-wider">What's new today?</span>
-              </div>
-              {announcements.length > 0 && (
-                <button 
-                  onClick={() => setShowAllNews(true)}
-                  className="text-xs font-medium text-slate-400 hover:text-blue-300 transition-colors flex items-center gap-1"
-                >
-                  See all
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            
-            <div className="flex flex-col gap-4 max-h-[700px] overflow-y-auto pr-2 custom-scrollbar">
-              {announcements.slice(0, 5).map((item, index) => {
-                const isFirst = index === 0;
-                const isExpanded = expandedNewsId === item.id;
-                
-                return (
-                  <div key={item.id} className="news-item-container">
-                    <div 
-                      onClick={() => setExpandedNewsId(isExpanded ? null : (item.id as string))}
-                      className={`p-5 rounded-2xl transition-all duration-300 group cursor-pointer border ${
-                        isExpanded 
-                          ? 'bg-white/10 border-indigo-500/40 shadow-lg shadow-indigo-500/10' 
-                          : 'border-white/5 hover:bg-white/5 hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/20'
-                      }`}
-                    >
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${
-                            isExpanded ? 'bg-indigo-500/20 text-indigo-300' : 'bg-blue-500/20 text-blue-300'
-                          }`}>
-                            {item.type}
-                          </span>
-                          <span className="text-[11px] font-medium text-slate-400">{item.date}</span>
-                        </div>
-                        
-                        <h3 className={`text-lg font-bold leading-tight transition-colors ${
-                          isExpanded ? 'text-indigo-300' : 'text-white group-hover:text-blue-300'
-                        }`}>
-                          {item.title}
-                        </h3>
-                        
-                        {isExpanded ? (
-                          <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className="overflow-hidden"
-                          >
-                            <div 
-                              className="text-slate-300 text-sm leading-relaxed space-y-2 mt-2 pt-4 border-t border-white/10 [&>h1]:text-xl [&>h1]:font-bold [&>h1]:text-white [&>h1]:mt-4 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:text-white [&>h2]:mt-3 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>a]:text-blue-400 [&>a]:underline [&>img]:rounded-xl [&>img]:mt-2 [&>img]:w-full [&>img]:object-cover [&>blockquote]:border-l-4 [&>blockquote]:border-indigo-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-slate-400"
-                              dangerouslySetInnerHTML={{ __html: item.desc }}
-                              onClick={(e) => e.stopPropagation()} // Prevent collapsing when clicking content
-                            />
-                          </motion.div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-slate-500 text-xs font-medium group-hover:text-blue-400 transition-colors">
-                            <Info className="w-3.5 h-3.5" />
-                            <span>Click to view details</span>
-                          </div>
-                        )}
-
-                        {item.file && (
-                          <div 
-                            className="flex items-center gap-2 mt-2 pt-3 border-t border-white/5"
-                            onClick={(e) => e.stopPropagation()} // Prevent toggle when clicking file
-                          >
-                            <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
-                              <FileText className="w-3 h-3 text-slate-300" />
-                            </div>
-                            <span className="text-xs font-medium text-slate-400">{item.file}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {isFirst && announcements.length > 1 && (
-                      <div className="my-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                    )}
+            {isManager && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="order-3 relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8"
+              >
+                 <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 text-teal-400">
+                    <Users className="w-5 h-5" />
+                    <span className="text-sm font-bold uppercase tracking-wider">Team Status</span>
                   </div>
-                );
-              })}
-              {announcements.length === 0 && (
-                <div className="text-center py-12 text-slate-500">
-                  No data available.
                 </div>
-              )}
-            </div>
-          </motion.div>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div className="flex flex-col items-center">
+                      <span className="text-2xl font-black text-white">{teamStatus.onsite}</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase">Onsite</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-2xl font-black text-white">{teamStatus.remote}</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase">Remote</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-2xl font-black text-white">{teamStatus.onLeave}</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase">On Leave</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
         </div>
 
         {/* Quick Actions */}

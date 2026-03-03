@@ -9,13 +9,14 @@ const eventTypes = {
   company: { label: 'Company Event', color: 'bg-blue-500', textColor: 'text-blue-400', bgColor: 'bg-blue-500/20' },
   holiday: { label: 'Public Holiday', color: 'bg-emerald-500', textColor: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
   personal: { label: 'Personal Leave', color: 'bg-rose-500', textColor: 'text-rose-400', bgColor: 'bg-rose-500/20' },
+  deadline: { label: 'Task Deadline', color: 'bg-yellow-500', textColor: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
 };
 
 interface CalendarEvent {
   id: string | number;
   date: Date;
   title: string;
-  type: 'company' | 'holiday' | 'personal';
+  type: 'company' | 'holiday' | 'personal' | 'deadline';
 }
 
 interface TeamLeave {
@@ -72,6 +73,17 @@ export function Calendar({ user }: CalendarProps) {
 
       if (error) throw error;
 
+      // Fetch tasks with deadlines in the current month
+      const { data: tasks, error: tasksError } = await supabase
+        .from('tasks')
+        .select('id, title, deadline, assignee_id, assigner_id')
+        .neq('status', 'Done')
+        .or(`assignee_id.eq.${user.id},assigner_id.eq.${user.id}`)
+        .gte('deadline', startOfMonth)
+        .lte('deadline', endOfMonth);
+
+      if (tasksError) throw tasksError;
+
       const newEvents: CalendarEvent[] = [];
       const newTeamLeave: TeamLeave[] = [];
 
@@ -109,6 +121,19 @@ export function Calendar({ user }: CalendarProps) {
               status: isActive ? 'On Leave' : 'Upcoming',
               date: `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
               avatar: avatar
+            });
+          }
+        });
+      }
+
+      if (tasks) {
+        tasks.forEach((task: any) => {
+          if (task.deadline) {
+            newEvents.push({
+              id: `task-${task.id}`,
+              date: new Date(task.deadline),
+              title: `Deadline: ${task.title}`,
+              type: 'deadline'
             });
           }
         });

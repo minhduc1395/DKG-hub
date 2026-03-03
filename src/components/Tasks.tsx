@@ -629,6 +629,13 @@ export function Tasks({ user }: TasksProps) {
 
     const currentAssignees = task.assignees || [];
     const isAssigned = currentAssignees.some(a => a.id === userId);
+
+    // Prevent removing self if not the task creator
+    if (isAssigned && userId === user.id && task.assignerId !== user.id) {
+      alert("You cannot remove yourself from a task you did not create.");
+      return;
+    }
+
     const newAssignees = isAssigned 
       ? currentAssignees.filter(a => a.id !== userId)
       : [...currentAssignees, { id: userId, name: employees.find(e => e.id === userId)?.name || 'Unknown' }];
@@ -925,22 +932,95 @@ export function Tasks({ user }: TasksProps) {
                 {/* Mobile: Top Row with Status & Priority */}
                 <div className="lg:hidden flex items-center justify-between w-full mb-2">
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (task.status === 'Done') {
-                          updateTaskStatus(task.id, 'Todo');
-                        } else {
-                          handleCompleteTask(task.id);
-                        }
-                      }}
-                      className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all", getStatusColor(task.status))}
-                    >
-                      {task.status}
-                    </button>
-                    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border", getPriorityColor(task.priority))}>
-                      {task.priority}
-                    </span>
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdownId(openDropdownId === task.id ? null : task.id);
+                        }}
+                        className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all", getStatusColor(task.status))}
+                      >
+                        {task.status}
+                      </button>
+                      <AnimatePresence>
+                        {openDropdownId === task.id && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }} />
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute left-0 top-full mt-2 w-40 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
+                            >
+                              <div className="p-1 flex flex-col">
+                                {['Todo', 'In Progress', 'Review', 'Done'].map((status) => (
+                                  <button
+                                    key={status}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateTaskStatus(task.id, status as Task['status']);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className={cn(
+                                      "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
+                                      task.status === status ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
+                                    )}
+                                  >
+                                    {status}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdownId(openDropdownId === `${task.id}-priority` ? null : `${task.id}-priority`);
+                        }}
+                        className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all", getPriorityColor(task.priority))}
+                      >
+                        {task.priority}
+                      </button>
+                      <AnimatePresence>
+                        {openDropdownId === `${task.id}-priority` && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }} />
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute left-0 top-full mt-2 w-32 bg-[#1A1D24] border border-white/10 rounded-xl shadow-2xl z-50"
+                            >
+                              <div className="p-1 flex flex-col">
+                                {['Low', 'Medium', 'High'].map((p) => (
+                                  <button
+                                    key={p}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateTaskField(task.id, 'priority', p);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className={cn(
+                                      "px-3 py-2 text-xs font-bold text-left rounded-lg transition-colors",
+                                      task.priority === p ? "bg-blue-500/10 text-blue-400" : "text-slate-300 hover:bg-white/5 hover:text-white"
+                                    )}
+                                  >
+                                    {p}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
 
