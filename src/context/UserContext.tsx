@@ -18,7 +18,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Session check error:", error);
+        // If session is invalid (e.g. invalid refresh token), ensure we are logged out
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       if (session?.user) {
         fetchProfile(session.user.id, session.user.email || '');
       } else {
@@ -28,9 +36,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        console.log("Auth event:", event);
+        
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+
         if (session?.user) {
-          fetchProfile(session.user.id, session.user.email || '');
+          // Only fetch profile if we don't have it or if the user changed
+          // This prevents unnecessary fetches on token refresh
+          setUser(prev => {
+            if (prev?.id === session.user.id) return prev;
+            fetchProfile(session.user.id, session.user.email || '');
+            return prev;
+          });
         } else {
           setUser(null);
           setIsLoading(false);

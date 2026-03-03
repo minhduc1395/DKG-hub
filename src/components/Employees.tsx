@@ -7,6 +7,7 @@ interface Employee {
   id: string;
   name: string;
   role: string;
+  position?: string;
   department: string;
   status: string;
   avatar_url: string | null;
@@ -26,24 +27,34 @@ export function Employees() {
       setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
-        .select('*');
+        .select(`
+          *,
+          job_positions (
+            title,
+            roles (
+              role_name
+            )
+          )
+        `);
 
       if (error) throw error;
 
       if (data) {
-        // Map Supabase profiles to Employee interface
-        // Note: 'status' and 'avatar_url' might not exist in profiles table yet, 
-        // so we'll use defaults or check if they exist.
-        // Assuming profiles table has: id, name, role, department, email
-        const mappedEmployees = data.map((profile: any) => ({
-          id: profile.id,
-          name: profile.name || 'Unknown',
-          role: profile.role || 'Staff',
-          department: profile.department || 'General',
-          status: 'Active', // Default status as we don't track this in profiles yet
-          avatar_url: profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}&background=random`,
-          email: profile.email || ''
-        }));
+        const mappedEmployees = data.map((profile: any) => {
+          const jobPosition = Array.isArray(profile.job_positions) ? profile.job_positions[0] : profile.job_positions;
+          const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
+          
+          return {
+            id: profile.id,
+            name: profile.full_name || 'Unknown',
+            role: roleData?.role_name || 'Staff',
+            position: jobPosition?.title,
+            department: profile.department || 'General',
+            status: 'Active',
+            avatar_url: profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name || 'User')}&background=random`,
+            email: profile.personal_email || ''
+          };
+        });
         setEmployees(mappedEmployees);
       }
     } catch (error) {
@@ -109,7 +120,7 @@ export function Employees() {
               </div>
               
               <h3 className="text-lg font-bold text-white mb-1">{emp.name}</h3>
-              <p className="text-blue-300 text-sm font-medium mb-1">{emp.role}</p>
+              <p className="text-blue-300 text-sm font-medium mb-1">{emp.position || emp.role}</p>
               <p className="text-slate-400 text-xs uppercase tracking-wider font-semibold mb-6">{emp.department}</p>
               
               <div className="flex items-center gap-3 w-full mt-auto">

@@ -17,13 +17,15 @@ import {
   UserX,
   ArrowRight,
   User as UserIcon,
-  Loader2
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
 import { Task } from './Tasks';
 import { teamService, EmployeePerformance } from '../services/teamService';
 import { supabase } from '../lib/supabaseClient';
+import { DatePicker } from './DatePicker';
 
 interface TeamStatusProps {
   user: User;
@@ -104,8 +106,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
       assigner_id: user.id,
       status: 'Todo',
       priority: newTask.priority,
-      deadline: newTask.deadline,
-      created_at: new Date().toISOString()
+      deadline: newTask.deadline
     };
 
     const { data, error } = await supabase
@@ -257,7 +258,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
             onClick={() => setIsAssignTaskOpen(true)}
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" /> Assign Task
+            Assign Task
           </button>
         </div>
       </div>
@@ -340,7 +341,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                             <img src={emp.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10" />
                             <div className="flex flex-col">
                               <span className="font-bold text-white">{emp.name}</span>
-                              <span className="text-[10px] text-slate-500">{emp.role} • {emp.department}</span>
+                              <span className="text-[10px] text-slate-500">{emp.position || emp.role} • {emp.department}</span>
                             </div>
                           </div>
                         </td>
@@ -513,7 +514,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
             >
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-blue-400" /> Assign Task
+                  Assign Task
                 </h2>
                 <button onClick={() => { setIsAssignTaskOpen(false); setSelectedEmployee(null); }} className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
                   <X className="w-5 h-5" />
@@ -522,17 +523,20 @@ export function TeamStatus({ user }: TeamStatusProps) {
               <form onSubmit={handleAssignTask} className="p-6 space-y-5">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Assign To</label>
-                  <select 
-                    required 
-                    value={newTask.assigneeId} 
-                    onChange={e => setNewTask({...newTask, assigneeId: e.target.value})} 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none [color-scheme:dark]"
-                  >
-                    <option value="" disabled className="bg-[#0F1115] text-white">Select Team Member...</option>
-                    {team.map(emp => (
-                      <option key={emp.id} value={emp.id} className="bg-[#0F1115] text-white">{emp.name} ({emp.role})</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select 
+                      required 
+                      value={newTask.assigneeId} 
+                      onChange={e => setNewTask({...newTask, assigneeId: e.target.value})} 
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none [color-scheme:dark]"
+                    >
+                      <option value="" disabled className="bg-[#0F1115] text-white">Select Team Member...</option>
+                      {team.map(emp => (
+                        <option key={emp.id} value={emp.id} className="bg-[#0F1115] text-white">{emp.name} ({emp.position || emp.role})</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Task Title</label>
@@ -553,7 +557,12 @@ export function TeamStatus({ user }: TeamStatusProps) {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase">Deadline</label>
-                    <input required type="date" value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" />
+                    <DatePicker
+                      value={newTask.deadline}
+                      onChange={(date) => setNewTask({...newTask, deadline: date})}
+                      placeholder="Select deadline..."
+                      inputClassName="bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                    />
                   </div>
                 </div>
                 <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)]">

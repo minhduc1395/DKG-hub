@@ -119,7 +119,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
             />
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-bold text-white truncate group-hover:text-blue-300 transition-colors">{user.name}</span>
-              <span className="text-xs text-slate-400 truncate capitalize">{user.role}</span>
+              <span className="text-xs text-slate-400 truncate capitalize">{user.position || user.role}</span>
             </div>
           </button>
         </div>

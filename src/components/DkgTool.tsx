@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Cpu, ExternalLink, Loader2, Globe, Layout, Shield, Zap } from 'lucide-react';
+import { Search, Filter, Cpu, ExternalLink, Loader2, Globe, Layout, Shield, Zap, AlertTriangle } from 'lucide-react';
 import { User } from '../types';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
@@ -26,23 +26,28 @@ export function DkgTool({ user }: DkgToolProps) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [tools, setTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTools = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        const { data, error } = await supabase
+        const { data, error: supabaseError } = await supabase
           .from('dkg_tools')
-          .select('id, title, description, url, category, icon_name, allowed_roles, color')
+          .select('*')
           .order('title');
 
-        if (error) {
-          console.error('Error fetching tools:', error);
+        if (supabaseError) {
+          console.error('Error fetching tools:', supabaseError);
+          setError(supabaseError.message);
+          return;
         }
 
         setTools(data || []);
-      } catch (error) {
-        console.error('Error fetching tools:', error);
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setIsLoading(false);
       }
@@ -50,6 +55,8 @@ export function DkgTool({ user }: DkgToolProps) {
 
     fetchTools();
   }, []);
+
+  const dynamicCategories = ['All', ...new Set(tools.map(t => t.category).filter(Boolean))];
 
   const getIcon = (iconName: string) => {
     switch (iconName?.toLowerCase()) {
@@ -68,13 +75,17 @@ export function DkgTool({ user }: DkgToolProps) {
     const matchesCategory = activeCategory === 'All' || tool.category === activeCategory;
     
     // Check if user has permission
-    const hasPermission = !tool.allowed_roles || tool.allowed_roles.length === 0 || tool.allowed_roles.includes(user.role);
+    const allowedRoles = Array.isArray(tool.allowed_roles) 
+      ? tool.allowed_roles 
+      : (typeof tool.allowed_roles === 'string' ? [tool.allowed_roles] : []);
+      
+    const hasPermission = allowedRoles.length === 0 || allowedRoles.includes(user.role);
 
     return matchesSearch && matchesCategory && hasPermission;
   });
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full h-full animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
       {/* Header & Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -94,15 +105,12 @@ export function DkgTool({ user }: DkgToolProps) {
               className="w-full bg-transparent rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none relative z-10"
             />
           </div>
-          <button className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-            <Filter className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
       {/* Categories */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar shrink-0">
-        {categories.map(category => (
+        {dynamicCategories.map(category => (
           <button
             key={category}
             onClick={() => setActiveCategory(category)}
@@ -119,15 +127,30 @@ export function DkgTool({ user }: DkgToolProps) {
       </div>
 
       {/* Tools Grid */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar pb-8">
+      <div className="pb-8">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-64 text-rose-400 bg-rose-500/5 border border-rose-500/10 rounded-[2rem] p-8 text-center">
+            <AlertTriangle className="w-12 h-12 mb-4 opacity-50" />
+            <h3 className="text-lg font-bold mb-2">Error Loading Tools</h3>
+            <p className="text-sm opacity-80 max-w-md">{error}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-6 px-6 py-2 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         ) : filteredTools.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+          <div className="flex flex-col items-center justify-center h-64 text-slate-500 bg-white/5 border border-white/10 rounded-[2rem]">
             <Cpu className="w-12 h-12 mb-4 opacity-20" />
-            <p>No tools found.</p>
+            <p className="font-medium">No tools found.</p>
+            {tools.length > 0 && (
+              <p className="text-xs mt-2 opacity-50">Try changing your search or category filter.</p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -142,11 +165,11 @@ export function DkgTool({ user }: DkgToolProps) {
                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                   <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-white" />
                 </div>
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-4", tool.color || "bg-blue-500/20 text-blue-400")}>
+                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-lg", tool.color || "bg-blue-500/20 text-blue-400")}>
                   {getIcon(tool.icon_name)}
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">{tool.title}</h3>
-                <p className="text-sm text-slate-400 line-clamp-2">{tool.description}</p>
+                <h3 className="text-lg font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">{tool.title}</h3>
+                <p className="text-sm text-slate-400 line-clamp-2 group-hover:text-slate-300 transition-colors">{tool.description}</p>
                 <div className="mt-4 flex items-center gap-2">
                   <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border border-white/5">
                     {tool.category}

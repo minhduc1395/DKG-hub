@@ -1,0 +1,289 @@
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { format, isValid, parse, getYear, getMonth, setYear, setMonth, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '../lib/utils';
+
+interface DatePickerProps {
+  value: string | undefined;
+  onChange: (date: string) => void;
+  className?: string;
+  inputClassName?: string;
+  placeholder?: string;
+  autoFocus?: boolean;
+  onBlur?: () => void;
+}
+
+export function DatePicker({ value, onChange, className, inputClassName, placeholder, autoFocus, onBlur }: DatePickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [popupPosition, setPopupPosition] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Initialize input value from prop
+  useEffect(() => {
+    if (value) {
+      const date = new Date(value);
+      if (isValid(date)) {
+        setInputValue(format(date, 'yyyy-MM-dd'));
+        setCurrentMonth(date);
+      } else {
+        setInputValue(value);
+      }
+    } else {
+      setInputValue('');
+    }
+  }, [value]);
+
+  // Handle autoFocus
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+      setIsOpen(true);
+    }
+  }, [autoFocus]);
+
+  // Update popup position when opening
+  useLayoutEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      
+      // Force bottom positioning as requested
+      // "chỉ hiện ở 1 vị trí đó là hướng sổ xuống dưới ô nhập liệu data của deadline"
+      setPopupPosition({
+        top: rect.bottom + 8,
+        left: rect.left
+      });
+    } else if (!isOpen) {
+      setPopupPosition(null);
+    }
+  }, [isOpen]);
+
+  // Handle click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isOutsideContainer = containerRef.current && !containerRef.current.contains(target);
+      const isOutsidePopup = popupRef.current && !popupRef.current.contains(target);
+
+      if (isOutsideContainer && isOutsidePopup) {
+        setIsOpen(false);
+        // Validate on close
+        handleBlurInternal();
+        if (onBlur) onBlur();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      // Close on scroll to avoid detached popup
+      window.addEventListener('scroll', () => setIsOpen(false), { capture: true });
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', () => setIsOpen(false), { capture: true });
+    };
+  }, [isOpen, inputValue, onBlur]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleBlurInternal = () => {
+    // Try to parse the input
+    // Supported formats: yyyy-MM-dd, dd/MM/yyyy, dd-MM-yyyy
+    let parsedDate: Date | undefined;
+    
+    const formats = ['yyyy-MM-dd', 'dd/MM/yyyy', 'dd-MM-yyyy', 'd/M/yyyy', 'd-M-yyyy'];
+    
+    for (const fmt of formats) {
+      const d = parse(inputValue, fmt, new Date());
+      if (isValid(d)) {
+        parsedDate = d;
+        break;
+      }
+    }
+
+    if (parsedDate) {
+      const formatted = format(parsedDate, 'yyyy-MM-dd');
+      if (formatted !== value) {
+        onChange(formatted);
+      }
+      setInputValue(formatted);
+      setCurrentMonth(parsedDate);
+    } else {
+      if (value) {
+         setInputValue(value);
+      }
+    }
+  };
+
+  const handleDayClick = (day: Date) => {
+    const formatted = format(day, 'yyyy-MM-dd');
+    onChange(formatted);
+    setInputValue(formatted);
+    setIsOpen(false);
+    if (onBlur) onBlur();
+  };
+
+  const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
+  
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newYear = parseInt(e.target.value);
+    setCurrentMonth(setYear(currentMonth, newYear));
+  };
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newMonth = parseInt(e.target.value);
+    setCurrentMonth(setMonth(currentMonth, newMonth));
+  };
+
+  // Generate days
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart);
+  const endDate = endOfWeek(monthEnd);
+  
+  const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
+
+  // Generate years (100 years back, 10 years forward)
+  const currentYear = getYear(new Date());
+  const years = Array.from({ length: 110 }, (_, i) => currentYear - 100 + i).reverse();
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June', 
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  return (
+    <div className={cn("relative", className)} ref={containerRef}>
+      <div className="relative">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onBlur={() => {
+            // Defer blur handling to allow click outside logic to run first
+            // or just rely on click outside. 
+            // If we tab out, we want to validate.
+            // setTimeout(() => {
+            //   if (!containerRef.current?.contains(document.activeElement) && !popupRef.current?.contains(document.activeElement)) {
+            //      handleBlurInternal();
+            //      if (onBlur) onBlur();
+            //      setIsOpen(false);
+            //   }
+            // }, 0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleBlurInternal();
+              setIsOpen(false);
+              if (onBlur) onBlur();
+              inputRef.current?.blur();
+            }
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder || "YYYY-MM-DD"}
+          className={cn(
+            "w-full p-3 bg-white/5 text-white border border-white/10 rounded-xl placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all",
+            inputClassName,
+            "pr-10"
+          )}
+        />
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+        >
+          <CalendarIcon className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      {isOpen && popupPosition && createPortal(
+        <div 
+          ref={popupRef}
+          style={{ 
+            top: popupPosition.top, 
+            bottom: popupPosition.bottom,
+            left: popupPosition.left,
+            position: 'fixed'
+          }}
+          className="z-[9999] mt-0 p-4 bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl w-[320px] animate-in fade-in duration-200"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <button onClick={prevMonth} className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            
+            <div className="flex gap-2 flex-1 justify-center">
+              <select 
+                value={getMonth(currentMonth)} 
+                onChange={handleMonthChange}
+                className="bg-white/5 border border-white/10 rounded text-xs text-white p-1 focus:outline-none cursor-pointer"
+              >
+                {months.map((m, i) => (
+                  <option key={m} value={i} className="bg-[#0f172a]">{m}</option>
+                ))}
+              </select>
+              
+              <select 
+                value={getYear(currentMonth)} 
+                onChange={handleYearChange}
+                className="bg-white/5 border border-white/10 rounded text-xs text-white p-1 focus:outline-none cursor-pointer"
+              >
+                {years.map(y => (
+                  <option key={y} value={y} className="bg-[#0f172a]">{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <button onClick={nextMonth} className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white">
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Weekdays */}
+          <div className="grid grid-cols-7 mb-2">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
+              <div key={day} className="text-center text-[10px] font-bold text-slate-500 uppercase">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Days */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays.map((day, i) => {
+              const isSelected = value ? isSameDay(day, new Date(value)) : false;
+              const isCurrentMonth = isSameMonth(day, currentMonth);
+              const isToday = isSameDay(day, new Date());
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleDayClick(day)}
+                  className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center text-xs transition-all",
+                    !isCurrentMonth && "text-slate-600 opacity-50",
+                    isCurrentMonth && "text-slate-300 hover:bg-white/10 hover:text-white",
+                    isSelected && "bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20",
+                    isToday && !isSelected && "border border-blue-500/50 text-blue-400"
+                  )}
+                >
+                  {format(day, 'd')}
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

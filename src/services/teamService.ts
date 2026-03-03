@@ -6,6 +6,7 @@ export interface EmployeePerformance {
   avatar: string;
   department: string;
   role: string;
+  position?: string;
   tasksCompleted: number;
   tasksPending: number;
   tasksOverdue: number;
@@ -19,7 +20,18 @@ export const teamService = {
       // 1. Fetch all profiles (employees)
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name, avatar, department, role');
+        .select(`
+          id, 
+          full_name, 
+          avatar_url, 
+          department,
+          job_positions (
+            title,
+            roles (
+              role_name
+            )
+          )
+        `);
 
       if (profilesError) throw profilesError;
 
@@ -37,16 +49,23 @@ export const teamService = {
       const startOfMonthStr = startOfMonth.toISOString();
 
       const { data: attendance, error: attendanceError } = await supabase
-        .from('attendance')
+        .from('attendance_logs')
         .select('employee_id, status, date')
         .gte('date', startOfMonthStr);
 
-      if (attendanceError) throw attendanceError;
+      if (attendanceError) {
+        console.warn('Error fetching attendance:', attendanceError);
+        // Don't throw, just continue with empty attendance
+      }
 
       // 4. Aggregate data
-      const performanceData: EmployeePerformance[] = profiles.map(profile => {
+      const performanceData: EmployeePerformance[] = (profiles || []).map(profile => {
+        const jobPosition = Array.isArray(profile.job_positions) ? profile.job_positions[0] : profile.job_positions;
+        const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
+        const roleName = roleData?.role_name || 'Staff';
+
         const employeeTasks = tasks.filter(t => t.assignee_id === profile.id);
-        const employeeAttendance = attendance.filter(a => a.employee_id === profile.id);
+        const employeeAttendance = (attendance || []).filter(a => a.employee_id === profile.id);
 
         const tasksCompleted = employeeTasks.filter(t => t.status === 'Done').length;
         const tasksPending = employeeTasks.filter(t => ['Todo', 'In Progress', 'Review'].includes(t.status)).length;
@@ -56,18 +75,17 @@ export const teamService = {
 
         const lateDays = employeeAttendance.filter(a => a.status === 'Late').length;
         
-        // Calculate attendance rate (simplified: present/late days / 22 working days * 100)
-        // Or better: (present + late) / (total days in month so far excluding weekends?)
-        // Let's use a fixed denominator of 22 for now as a standard month, or max(22, days passed)
+        // Calculate attendance rate (present/late days / 22 working days * 100)
         const presentDays = employeeAttendance.filter(a => ['Present', 'Late'].includes(a.status)).length;
         const attendanceRate = Math.min(100, Math.round((presentDays / 22) * 100));
 
         return {
           id: profile.id,
-          name: profile.name || 'Unknown',
-          avatar: profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}`,
+          name: profile.full_name || 'Unknown',
+          avatar: profile.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.full_name || 'User')}`,
           department: profile.department || 'Unknown',
-          role: profile.role || 'Staff',
+          role: roleName,
+          position: jobPosition?.title,
           tasksCompleted,
           tasksPending,
           tasksOverdue,

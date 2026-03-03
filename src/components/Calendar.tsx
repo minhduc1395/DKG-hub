@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User as UserIcon, Bell, Info, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
@@ -36,6 +36,7 @@ export function Calendar({ user }: CalendarProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [teamLeaveStatus, setTeamLeaveStatus] = useState<TeamLeave[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -48,7 +49,9 @@ export function Calendar({ user }: CalendarProps) {
   }, [currentDate, user.id]);
 
   const fetchCalendarData = async () => {
-    setLoading(true);
+    // Only set loading on initial mount
+    if (!events.length && loading) setLoading(true);
+    setIsFetching(true);
     try {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
@@ -121,6 +124,7 @@ export function Calendar({ user }: CalendarProps) {
       console.error("Error fetching calendar data:", error);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 
@@ -318,9 +322,7 @@ export function Calendar({ user }: CalendarProps) {
 
         {/* Main Calendar Section */}
         <div className="order-2 lg:order-1 lg:col-span-3 flex flex-col">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div 
             className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl shadow-black/40"
           >
             {/* Weekday Headers */}
@@ -333,10 +335,21 @@ export function Calendar({ user }: CalendarProps) {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 flex-1 overflow-y-auto">
-              {renderCalendarDays()}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden relative min-h-[600px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentDate.toISOString()}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  className="grid grid-cols-7"
+                >
+                  {renderCalendarDays()}
+                </motion.div>
+              </AnimatePresence>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

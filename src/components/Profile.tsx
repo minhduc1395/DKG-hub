@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User } from '../types';
 import { Camera, Save, User as UserIcon, Briefcase, FileText, CreditCard, Phone, MapPin, Mail, Loader2 } from 'lucide-react';
 import { AvatarPicker } from './AvatarPicker';
+import { DatePicker } from './DatePicker';
 import { supabase } from '../lib/supabaseClient';
 
 interface ProfileProps {
@@ -265,14 +266,10 @@ export function Profile({ user, onUpdate }: ProfileProps) {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-medium text-slate-400 uppercase">Date of Issue</label>
-            <input
-              type="text"
-              placeholder="Select Date of Issue"
-              onFocus={(e) => (e.target.type = "date")}
-              onBlur={(e) => (e.target.type = "text")}
+            <DatePicker
               value={formData.idCardDate || ''}
-              onChange={(e) => handleChange('idCardDate', e.target.value)}
-              className={editableInputClass}
+              onChange={(date) => handleChange('idCardDate', date)}
+              placeholder="YYYY-MM-DD"
             />
           </div>
           <div className="space-y-2">
