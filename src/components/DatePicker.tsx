@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isValid, parse, getYear, getMonth, setYear, setMonth, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -198,9 +198,9 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-slate-200 transition-colors"
         >
-          <CalendarIcon className="w-5 h-5 text-white" />
+          <CalendarIcon className="w-5 h-5" />
         </button>
       </div>
 
@@ -213,45 +213,27 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
             left: popupPosition.left,
             position: 'fixed'
           }}
-          className="z-[9999] mt-0 p-4 bg-[#0f172a] border border-white/10 rounded-xl shadow-2xl w-[320px] animate-in fade-in duration-200"
+          className="z-[9999] mt-2 p-4 bg-[#020617] border border-white/10 rounded-2xl shadow-2xl w-[320px] animate-in fade-in zoom-in-95 duration-200"
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-4 gap-2">
-            <button onClick={prevMonth} className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white">
-              <ChevronLeft className="w-5 h-5" />
+            <button onClick={prevMonth} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+              <ChevronLeft className="w-4 h-4" />
             </button>
             
-            <div className="flex gap-2 flex-1 justify-center">
-              <select 
-                value={getMonth(currentMonth)} 
-                onChange={handleMonthChange}
-                className="bg-white/5 border border-white/10 rounded text-xs text-white p-1 focus:outline-none cursor-pointer"
-              >
-                {months.map((m, i) => (
-                  <option key={m} value={i} className="bg-[#0f172a]">{m}</option>
-                ))}
-              </select>
-              
-              <select 
-                value={getYear(currentMonth)} 
-                onChange={handleYearChange}
-                className="bg-white/5 border border-white/10 rounded text-xs text-white p-1 focus:outline-none cursor-pointer"
-              >
-                {years.map(y => (
-                  <option key={y} value={y} className="bg-[#0f172a]">{y}</option>
-                ))}
-              </select>
+            <div className="flex gap-1 flex-1 justify-center font-bold text-white text-sm">
+              <span>{format(currentMonth, 'MMMM yyyy')}</span>
             </div>
 
-            <button onClick={nextMonth} className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white">
-              <ChevronRight className="w-5 h-5" />
+            <button onClick={nextMonth} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           {/* Weekdays */}
           <div className="grid grid-cols-7 mb-2">
             {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-              <div key={day} className="text-center text-[10px] font-bold text-slate-500 uppercase">
+              <div key={day} className="text-center text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                 {day}
               </div>
             ))}
@@ -269,11 +251,11 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
                   key={i}
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "h-8 w-8 rounded-full flex items-center justify-center text-xs transition-all",
-                    !isCurrentMonth && "text-slate-600 opacity-50",
-                    isCurrentMonth && "text-slate-300 hover:bg-white/10 hover:text-white",
-                    isSelected && "bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/20",
-                    isToday && !isSelected && "border border-blue-500/50 text-blue-400"
+                    "h-8 w-8 rounded-lg flex items-center justify-center text-xs transition-all font-medium",
+                    !isCurrentMonth && "text-slate-800",
+                    isCurrentMonth && "text-slate-300 hover:bg-white/5 hover:text-white",
+                    isSelected && "bg-blue-500 text-white hover:bg-blue-600",
+                    isToday && !isSelected && "text-blue-400 font-bold"
                   )}
                 >
                   {format(day, 'd')}

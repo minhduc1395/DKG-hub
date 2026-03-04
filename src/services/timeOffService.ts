@@ -44,6 +44,7 @@ export const timeOffService = {
 
   async fetchHistory(userId: string): Promise<TimeOffRequest[]> {
     try {
+      // Try with simplified join syntax first
       const { data, error } = await supabase
         .from('time_off_requests')
         .select(`
@@ -55,24 +56,50 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(name)
+          profiles(full_name)
         `)
         .eq('employee_id', userId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Fetch history with join failed, trying without join', error);
+        // Fallback without join
+        const { data: simpleData, error: simpleError } = await supabase
+          .from('time_off_requests')
+          .select('*')
+          .eq('employee_id', userId)
+          .order('created_at', { ascending: false });
+        
+        if (simpleError) throw simpleError;
+        
+        return (simpleData || []).map((req: any) => ({
+          id: req.id,
+          userId: req.employee_id,
+          userName: 'Me',
+          type: req.type,
+          startDate: req.start_date,
+          endDate: req.end_date,
+          reason: req.reason,
+          status: req.status,
+          createdAt: req.created_at,
+        }));
+      }
 
-      return (data || []).map((req: any) => ({
-        id: req.id,
-        userId: req.employee_id,
-        userName: req.profiles?.name || 'Unknown',
-        type: req.type,
-        startDate: req.start_date,
-        endDate: req.end_date,
-        reason: req.reason,
-        status: req.status,
-        createdAt: req.created_at,
-      }));
+      return (data || []).map((req: any) => {
+        const profiles = req.profiles;
+        const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        return {
+          id: req.id,
+          userId: req.employee_id,
+          userName: userName || 'Unknown',
+          type: req.type,
+          startDate: req.start_date,
+          endDate: req.end_date,
+          reason: req.reason,
+          status: req.status,
+          createdAt: req.created_at,
+        };
+      });
     } catch (error) {
       console.error('Error fetching time off history:', error);
       return [];
@@ -94,24 +121,28 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(name)
+          profiles!time_off_requests_employee_id_fkey(full_name)
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      return (data || []).map((req: any) => ({
-        id: req.id,
-        userId: req.employee_id,
-        userName: req.profiles?.name || 'Unknown',
-        type: req.type,
-        startDate: req.start_date,
-        endDate: req.end_date,
-        reason: req.reason,
-        status: req.status,
-        createdAt: req.created_at,
-      }));
+      return (data || []).map((req: any) => {
+        const profiles = req.profiles;
+        const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        return {
+          id: req.id,
+          userId: req.employee_id,
+          userName: userName || 'Unknown',
+          type: req.type,
+          startDate: req.start_date,
+          endDate: req.end_date,
+          reason: req.reason,
+          status: req.status,
+          createdAt: req.created_at,
+        };
+      });
     } catch (error) {
       console.error('Error fetching pending approvals:', error);
       return [];
@@ -131,24 +162,28 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(name)
+          profiles!time_off_requests_employee_id_fkey(full_name)
         `)
         .neq('status', 'pending')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      return (data || []).map((req: any) => ({
-        id: req.id,
-        userId: req.employee_id,
-        userName: req.profiles?.name || 'Unknown',
-        type: req.type,
-        startDate: req.start_date,
-        endDate: req.end_date,
-        reason: req.reason,
-        status: req.status,
-        createdAt: req.created_at,
-      }));
+      return (data || []).map((req: any) => {
+        const profiles = req.profiles;
+        const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        return {
+          id: req.id,
+          userId: req.employee_id,
+          userName: userName || 'Unknown',
+          type: req.type,
+          startDate: req.start_date,
+          endDate: req.end_date,
+          reason: req.reason,
+          status: req.status,
+          createdAt: req.created_at,
+        };
+      });
     } catch (error) {
       console.error('Error fetching approval history:', error);
       return [];
@@ -157,7 +192,7 @@ export const timeOffService = {
 
   async submitRequest(data: Omit<TimeOffRequest, 'id' | 'status' | 'createdAt'>): Promise<TimeOffRequest> {
     try {
-      const { data: insertedData, error } = await supabase
+      const { data: rawData, error } = await supabase
         .from('time_off_requests')
         .insert([{
           employee_id: data.userId,
@@ -176,16 +211,21 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(name)
+          profiles!time_off_requests_employee_id_fkey(full_name)
         `)
         .single();
 
       if (error) throw error;
 
+      const insertedData = rawData as any;
+
+      const profiles = insertedData.profiles;
+      const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+
       return {
         id: insertedData.id,
         userId: insertedData.employee_id,
-        userName: insertedData.profiles?.[0]?.name || data.userName,
+        userName: userName || data.userName,
         type: insertedData.type,
         startDate: insertedData.start_date,
         endDate: insertedData.end_date,

@@ -4,6 +4,7 @@ import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, Pl
 import { User } from '../types';
 import { timeOffService, TimeOffBalance, TimeOffRequest } from '../services/timeOffService';
 import { cn } from '../lib/utils';
+import { DatePicker } from './DatePicker';
 
 interface AwayProps {
   user: User;
@@ -39,11 +40,46 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const year = currentDate.getFullYear();
 
   const getDayStatus = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    // Construct date for the cell (Local time)
+    const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    cellDate.setHours(0, 0, 0, 0);
     
     // Find request covering this date
     const request = history.find(req => {
-      return req.startDate <= dateStr && req.endDate >= dateStr;
+      if (!req.startDate || !req.endDate) return false;
+      
+      // Parse YYYY-MM-DD strings manually to ensure Local Time interpretation
+      // This avoids timezone offsets issues with new Date('YYYY-MM-DD')
+      // and ensures we are comparing apples to apples
+      let sYear, sMonth, sDay, eYear, eMonth, eDay;
+
+      if (req.startDate.includes('-')) {
+        [sYear, sMonth, sDay] = req.startDate.split('-').map(Number);
+      } else {
+        // Fallback if format is different (e.g. /)
+        const d = new Date(req.startDate);
+        sYear = d.getFullYear();
+        sMonth = d.getMonth() + 1;
+        sDay = d.getDate();
+      }
+
+      if (req.endDate.includes('-')) {
+        [eYear, eMonth, eDay] = req.endDate.split('-').map(Number);
+      } else {
+         const d = new Date(req.endDate);
+         eYear = d.getFullYear();
+         eMonth = d.getMonth() + 1;
+         eDay = d.getDate();
+      }
+      
+      // Create dates in local time (month is 0-indexed in Date constructor)
+      const start = new Date(sYear, sMonth - 1, sDay);
+      start.setHours(0, 0, 0, 0);
+      
+      const end = new Date(eYear, eMonth - 1, eDay);
+      end.setHours(0, 0, 0, 0);
+      
+      return cellDate.getTime() >= start.getTime() && cellDate.getTime() <= end.getTime();
     });
 
     return request?.status;
@@ -70,16 +106,19 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   });
 
   useEffect(() => {
+    console.log('Away component mounted or user changed:', user.id);
     loadData();
   }, [user.id, user.role]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
+      console.log('Fetching time off data for user:', user.id);
       const [bal, hist] = await Promise.all([
         timeOffService.fetchBalance(user.id),
         timeOffService.fetchHistory(user.id)
       ]);
+      console.log('Fetched history:', hist);
       setBalance(bal);
       setHistory(hist);
 
@@ -235,6 +274,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   const status = getDayStatus(day);
                   const isApproved = status === 'approved' || status === 'Approved';
                   const isPending = status === 'pending' || status === 'Pending';
+                  const isRejected = status === 'rejected' || status === 'Rejected';
                   
                   return (
                     <div 
@@ -243,6 +283,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                         "aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition-all",
                         isApproved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 
                         isPending ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                        isRejected ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' :
                         'text-slate-400 hover:bg-white/5'
                       )}
                     >
@@ -259,6 +300,10 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full bg-amber-500"></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Rejected</span>
                 </div>
               </div>
             </div>
@@ -346,30 +391,35 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                           <thead>
                             <tr className="border-b border-white/5">
                               <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Dates</th>
+                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">From</th>
+                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">To</th>
+                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
                               <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
-                            {history.map((req) => (
-                              <tr key={req.id} className="group">
-                                <td className="py-4">
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-white">{req.type}</span>
-                                    <span className="text-xs text-slate-500">{req.reason}</span>
-                                  </div>
-                                </td>
-                                <td className="py-4">
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-300">{req.startDate}</span>
-                                    <span className="text-[10px] text-slate-500">to {req.endDate}</span>
-                                  </div>
-                                </td>
-                                <td className="py-4">
-                                  {getStatusBadge(req.status)}
-                                </td>
-                              </tr>
-                            ))}
+                            {history.map((req) => {
+                              const start = new Date(req.startDate);
+                              const end = new Date(req.endDate);
+                              const diffTime = Math.abs(end.getTime() - start.getTime());
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              return (
+                                <tr key={req.id} className="group">
+                                  <td className="py-4">
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-bold text-white">{req.type}</span>
+                                      <span className="text-xs text-slate-500">{req.reason}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-4 text-sm font-medium text-slate-300">{req.startDate}</td>
+                                  <td className="py-4 text-sm font-medium text-slate-300">{req.endDate}</td>
+                                  <td className="py-4 text-sm font-medium text-slate-300">{diffDays}</td>
+                                  <td className="py-4">
+                                    {getStatusBadge(req.status)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -470,35 +520,21 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Date</label>
-                      <div className="relative group">
-                        <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
-                        <input 
-                          type="text"
-                          placeholder="Select Start Day"
-                          onFocus={(e) => (e.target.type = "date")}
-                          onBlur={(e) => (e.target.type = "text")}
-                          required
-                          value={formData.startDate}
-                          onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-                          className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all placeholder:text-blue-200/20"
-                        />
-                      </div>
+                      <DatePicker 
+                        value={formData.startDate} 
+                        onChange={(date) => setFormData({...formData, startDate: date})} 
+                        placeholder="Select Start Day"
+                        inputClassName="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/10 text-white focus:outline-none transition-all placeholder:text-blue-200/20"
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date</label>
-                      <div className="relative group">
-                        <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
-                        <input 
-                          type="text"
-                          placeholder="Select End Day"
-                          onFocus={(e) => (e.target.type = "date")}
-                          onBlur={(e) => (e.target.type = "text")}
-                          required
-                          value={formData.endDate}
-                          onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                          className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all placeholder:text-blue-200/20"
-                        />
-                      </div>
+                      <DatePicker 
+                        value={formData.endDate} 
+                        onChange={(date) => setFormData({...formData, endDate: date})} 
+                        placeholder="Select End Day"
+                        inputClassName="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/10 text-white focus:outline-none transition-all placeholder:text-blue-200/20"
+                      />
                     </div>
                   </div>
 

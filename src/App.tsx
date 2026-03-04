@@ -1,8 +1,9 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Sidebar, Tab } from './components/Sidebar';
-import { Menu, Loader2 } from 'lucide-react';
+import { Menu, Loader2, Bell } from 'lucide-react';
 import { User } from './types';
 import { UserProvider, useUser } from './context/UserContext';
+import { NotificationsModal, NotificationItem } from './components/DashboardModals';
 import { supabase } from './lib/supabaseClient';
 import { Login } from './components/Login';
 import type { PayslipData } from './components/PayslipDetail';
@@ -37,10 +38,39 @@ function AppContent() {
   const { user, setUser, isAuthenticated, isLoading, logout } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [timeOffModalDefaultOpen, setTimeOffModalDefaultOpen] = useState(false);
   const [viewingPayslip, setViewingPayslip] = useState<PayslipData | null>(null);
   const [payslipHistory, setPayslipHistory] = useState<PayslipData[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`recipient_id.eq.${user?.id},recipient_id.is.null`)
+        .order('created_at', { ascending: false });
+      
+      if (data) {
+        setNotifications(data.map((item: any) => ({
+          id: item.id,
+          icon: Bell,
+          iconBg: 'bg-slate-500/20',
+          iconColor: 'text-slate-400',
+          title: item.title,
+          desc: item.content,
+          time: new Date(item.created_at).toLocaleDateString(),
+          category: item.category as any,
+          recipient_id: item.recipient_id
+        })));
+      }
+    };
+    if (user) fetchNotifications();
+  }, [user]);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
     if (activeTab !== 'timeoff') {
@@ -122,6 +152,15 @@ function AppContent() {
           </div>
           <div className="flex items-center gap-2">
             <button 
+              onClick={() => setShowNotifications(true)}
+              className="relative text-slate-400 hover:text-white p-2"
+            >
+              <Bell className="w-6 h-6" />
+              {unreadCount > 0 && (
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              )}
+            </button>
+            <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-slate-400 hover:text-white p-2"
             >
@@ -129,6 +168,8 @@ function AppContent() {
             </button>
           </div>
         </header>
+
+        <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} notifications={notifications} />
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:pt-6 lg:px-10 lg:pb-10 relative">
           <Suspense fallback={<LoadingFallback />}>

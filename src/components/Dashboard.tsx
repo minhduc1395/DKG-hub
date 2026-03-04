@@ -347,61 +347,6 @@ export function Dashboard({ user, onAction }: DashboardProps) {
               transition={{ delay: 0.1 }}
               className="relative overflow-hidden rounded-[2rem] bg-white/5 border border-white/5 flex flex-col p-6 md:p-8 flex-1"
             >
-              {/* Top Half: Notifications */}
-              <div className="flex-1 border-b border-white/10 pb-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-white">Notifications</h3>
-                  {notifications.length > 0 && (
-                    <button 
-                      onClick={() => setShowAllNotifications(true)}
-                      className="text-blue-300 hover:text-blue-400 text-sm font-medium"
-                    >
-                      View all
-                    </button>
-                  )}
-                </div>
-
-                {/* Tabs */}
-                <div className="flex items-center gap-2 mb-6">
-                  {(['all', 'personal', 'company'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                        activeTab === tab 
-                          ? 'bg-white/10 text-white' 
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                      }`}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                
-                <div className="flex flex-col gap-6">
-                  {filteredNotifications.slice(0, 3).map((item) => (
-                    <div 
-                      key={item.id} 
-                      className="flex gap-4 group"
-                    >
-                      <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${item.iconBg}`}>
-                        <item.icon className={`w-5 h-5 ${item.iconColor}`} />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-bold text-white leading-tight group-hover:text-blue-300 transition-colors">{item.title}</p>
-                        <p className="text-slate-400 text-sm leading-snug">{item.desc}</p>
-                        <span className="text-[10px] text-slate-500 font-medium mt-1">{item.time}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredNotifications.length === 0 && (
-                    <div className="text-center py-4 text-slate-500 text-sm">
-                      No data available.
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Bottom Half: Upcoming Events */}
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-6">

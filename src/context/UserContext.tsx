@@ -39,7 +39,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         console.log("Auth event:", event);
         
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        if (event === 'SIGNED_OUT') {
           setUser(null);
           setIsLoading(false);
           return;
