@@ -271,14 +271,13 @@ export function Tasks({ user }: TasksProps) {
           status,
           priority,
           deadline,
-          created_at,
           feedback_message,
           feedback_status,
           assignee:assignee_id(full_name, avatar_url),
           assigner:assigner_id(full_name, avatar_url),
           task_assignees(user_id, profiles(full_name, avatar_url))
         `)
-        .order('created_at', { ascending: false });
+        .order('id', { ascending: false });
 
       // CEO, Manager, and Accountant can see all tasks
       const userRole = user.role?.toLowerCase() || '';

@@ -115,7 +115,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
           status: t.status,
           priority: t.priority,
           deadline: t.deadline,
-          createdAt: t.created_at,
+          createdAt: t.created_at || new Date().toISOString(),
           feedback: t.feedback_message ? {
             message: t.feedback_message,
             status: t.feedback_status || 'Pending'
