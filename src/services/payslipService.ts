@@ -10,21 +10,27 @@ export interface PayslipRequest {
   month: string;
   year: number;
   netSalary: number;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: 'pending' | 'approved' | 'reject';
   submittedAt: string;
   approvedAt?: string;
   note?: string;
 }
 
 export const payslipService = {
-  // Fetch payslips for the current user (My Payslips)
-  async getMyPayslips(userId: string): Promise<PayslipData[]> {
-    const { data, error } = await supabase
+  // Fetch payslips for a user
+  async getMyPayslips(userId: string, status?: 'pending' | 'approved' | 'reject'): Promise<PayslipData[]> {
+    let query = supabase
       .from('payslips')
       .select('*')
-      .eq('employee_id', userId)
+      .eq('user_id', userId);
+    
+    if (status) {
+      query = query.eq('approval', status);
+    }
+    
+    const { data, error } = await query
       .order('year', { ascending: false })
-      .order('month', { ascending: false }); // Note: sorting by month string might not be ideal, but assuming standard usage
+      .order('month', { ascending: false });
 
     if (error) {
       console.error('Error fetching my payslips:', error);
@@ -40,14 +46,15 @@ export const payslipService = {
       .from('payslips')
       .select(`
         *,
-        profiles:employee_id (
-          name,
+        profiles:user_id (
+          full_name,
           department,
-          avatar
+          avatar_url
         )
       `)
-      .eq('status', 'Pending')
-      .order('submitted_at', { ascending: false });
+      .eq('approval', 'pending')
+      .order('year', { ascending: false })
+      .order('month', { ascending: false });
 
     if (error) {
       console.error('Error fetching pending payslips:', error);
@@ -63,14 +70,15 @@ export const payslipService = {
       .from('payslips')
       .select(`
         *,
-        profiles:employee_id (
-          name,
+        profiles:user_id (
+          full_name,
           department,
-          avatar
+          avatar_url
         )
       `)
-      .neq('status', 'Pending')
-      .order('approved_at', { ascending: false });
+      .neq('approval', 'pending')
+      .order('year', { ascending: false })
+      .order('month', { ascending: false });
 
     if (error) {
       console.error('Error fetching payslip history:', error);
@@ -85,8 +93,8 @@ export const payslipService = {
     const { error } = await supabase
       .from('payslips')
       .update({ 
-        status: 'Approved', 
-        approved_at: new Date().toISOString() 
+        approval: 'approved',
+        status: 'Approved'
       })
       .eq('id', id);
 
@@ -102,8 +110,8 @@ export const payslipService = {
     const { error } = await supabase
       .from('payslips')
       .update({ 
-        status: 'Rejected', 
-        approved_at: new Date().toISOString() 
+        approval: 'reject',
+        status: 'Rejected'
       })
       .eq('id', id);
 
@@ -128,41 +136,97 @@ export const payslipService = {
     }
     
     return mapToPayslipData(data);
+  },
+
+  // Save multiple payslips (from CSV or manual entry)
+  async savePayslips(payslips: any[]): Promise<{ success: boolean; error?: any }> {
+    const { error } = await supabase
+      .from('payslips')
+      .upsert(payslips, { onConflict: 'user_id,month,year' });
+
+    if (error) {
+      console.error('Error saving payslips:', error);
+      return { success: false, error };
+    }
+    return { success: true };
   }
 };
 
+// Helper to safely parse numbers
+function safeParseNum(val: any): number {
+  if (typeof val === 'number' && !isNaN(val)) return val;
+  if (typeof val === 'string') {
+    const parsed = parseFloat(val.replace(/,/g, ''));
+    if (!isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
 // Helper to map DB result to PayslipData (for Detail View)
 function mapToPayslipData(item: any): PayslipData {
+  const baseSalary = safeParseNum(item.base_salary);
+  const otAmount = safeParseNum(item.ot_amount);
+  const bonus = safeParseNum(item.performance_bonus_total);
+  const commission = safeParseNum(item.commission);
+  const allowance = safeParseNum(item.allowance);
+  const bhxh = safeParseNum(item.total_insurance);
+  const tax = safeParseNum(item.tax_amount);
+  const otherDeductions = safeParseNum(item.other_deduction);
+  
+  const totalIncome = baseSalary + otAmount + bonus + commission + allowance;
+  const totalDeductions = bhxh + tax + otherDeductions;
+  
+  let netSalary = safeParseNum(item.net_salary);
+  if (netSalary === 0) {
+    netSalary = totalIncome - totalDeductions;
+  }
+
   return {
     id: item.id,
     month: item.month,
     year: item.year,
-    baseSalary: item.base_salary,
-    otAmount: item.ot_amount,
-    performanceBonus: item.performance_bonus,
-    yearlyBonus: item.yearly_bonus,
-    allowances: item.allowances || [],
-    insurance: item.insurance || { bhxh: 0, bhyt: 0, bhtn: 0 },
-    tax: item.tax,
-    otherDeductions: item.other_deductions
+    baseSalary,
+    otAmount,
+    bonus,
+    commission,
+    allowance,
+    allowances: [], // No allowances in DB
+    insurance: { bhxh, bhyt: 0, bhtn: 0 }, // Mapping total_insurance
+    tax,
+    otherDeductions,
+    netSalary
   };
 }
 
 // Helper to map DB result to PayslipRequest (for List View)
 function mapToPayslipRequest(item: any): PayslipRequest {
   const profile = item.profiles || {};
+  
+  let netSalary = safeParseNum(item.net_salary);
+  if (netSalary === 0) {
+    const baseSalary = safeParseNum(item.base_salary);
+    const otAmount = safeParseNum(item.ot_amount);
+    const bonus = safeParseNum(item.performance_bonus_total);
+    const commission = safeParseNum(item.commission);
+    const allowance = safeParseNum(item.allowance);
+    const bhxh = safeParseNum(item.total_insurance);
+    const tax = safeParseNum(item.tax_amount);
+    const otherDeductions = safeParseNum(item.other_deduction);
+    netSalary = (baseSalary + otAmount + bonus + commission + allowance) - (bhxh + tax + otherDeductions);
+  }
+
   return {
     id: item.id,
-    employeeName: profile.name || 'Unknown',
-    employeeId: item.employee_id, // Or fetch a specific employee code if it exists
-    avatar: profile.avatar || 'https://picsum.photos/100/100',
+    employeeName: profile.full_name || 'Unknown',
+    employeeId: item.user_id,
+    avatar: profile.avatar_url || 'https://picsum.photos/100/100',
     department: profile.department || 'Unknown',
     month: item.month,
     year: item.year,
-    netSalary: item.net_salary, // Assuming net_salary is stored or calculated
-    status: item.status,
-    submittedAt: new Date(item.submitted_at).toLocaleDateString(),
-    approvedAt: item.approved_at ? new Date(item.approved_at).toLocaleDateString() : undefined,
-    note: item.note
+    netSalary,
+    status: (item.approval || 'pending') as 'pending' | 'approved' | 'reject',
+    submittedAt: `${item.month}/${item.year}`, // Fallback since no submitted_at
+    approvedAt: undefined, // No approved_at in DB
+    note: ''
   };
 }

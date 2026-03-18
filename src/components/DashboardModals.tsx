@@ -21,6 +21,7 @@ export interface NotificationItem {
   time: string;
   category: 'system' | 'task' | 'news' | 'reminder';
   recipient_id: string | null;
+  is_read?: boolean;
 }
 
 interface NewsModalProps {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { format, isValid, parse, getYear, getMonth, setYear, setMonth, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 
 interface DatePickerProps {
   value: string | undefined;
@@ -28,7 +28,7 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
     if (value) {
       const date = new Date(value);
       if (isValid(date)) {
-        setInputValue(format(date, 'yyyy-MM-dd'));
+        setInputValue(formatDate(date));
         setCurrentMonth(date);
       } else {
         setInputValue(value);
@@ -125,7 +125,7 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
   const handleDayClick = (day: Date) => {
     const formatted = format(day, 'yyyy-MM-dd');
     onChange(formatted);
-    setInputValue(formatted);
+    setInputValue(formatDate(day));
     setIsOpen(false);
     if (onBlur) onBlur();
   };
@@ -188,7 +188,7 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
             }
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder || "YYYY-MM-DD"}
+          placeholder={placeholder || "DD MMM YYYY"}
           className={cn(
             "w-full p-3 bg-white/5 text-white border border-white/10 rounded-xl placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all",
             inputClassName,

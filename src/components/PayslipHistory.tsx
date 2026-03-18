@@ -15,11 +15,11 @@ export function PayslipHistory({ history, onSelect }: PayslipHistoryProps) {
 
   const calculateTotals = (data: PayslipData) => {
     const totalInsurance = data.insurance.bhxh + data.insurance.bhyt + data.insurance.bhtn;
-    const bonusAndPerformance = data.performanceBonus + data.yearlyBonus;
+    const bonusAndPerformance = data.bonus + data.commission;
     const totalAllowances = data.allowances.reduce((sum, item) => sum + item.amount, 0);
-    const totalIncome = data.baseSalary + data.otAmount + bonusAndPerformance + totalAllowances;
+    const totalIncome = data.baseSalary + data.otAmount + data.bonus + data.commission + data.allowance + totalAllowances;
     const totalDeductions = totalInsurance + data.tax + data.otherDeductions;
-    const netSalary = totalIncome - totalDeductions;
+    const netSalary = data.netSalary || (totalIncome - totalDeductions);
     
     return { totalIncome, totalDeductions, netSalary };
   };

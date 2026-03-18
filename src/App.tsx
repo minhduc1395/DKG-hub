@@ -8,6 +8,7 @@ import { supabase } from './lib/supabaseClient';
 import { Login } from './components/Login';
 import type { PayslipData } from './components/PayslipDetail';
 import { payslipService } from './services/payslipService';
+import { formatDate } from './lib/utils';
 
 // Lazy loaded components
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -20,6 +21,7 @@ const Away = lazy(() => import('./components/Away').then(m => ({ default: m.Away
 const Documents = lazy(() => import('./components/Documents').then(m => ({ default: m.Documents })));
 const DkgTool = lazy(() => import('./components/DkgTool').then(m => ({ default: m.DkgTool })));
 const PayslipApprovals = lazy(() => import('./components/PayslipApprovals').then(m => ({ default: m.PayslipApprovals })));
+const PayslipInput = lazy(() => import('./components/PayslipInput').then(m => ({ default: m.PayslipInput })));
 const PayslipDetail = lazy(() => import('./components/PayslipDetail').then(m => ({ default: m.PayslipDetail })));
 const PayslipHistory = lazy(() => import('./components/PayslipHistory').then(m => ({ default: m.PayslipHistory })));
 const Tasks = lazy(() => import('./components/Tasks').then(m => ({ default: m.Tasks })));
@@ -43,6 +45,7 @@ function AppContent() {
   const [viewingPayslip, setViewingPayslip] = useState<PayslipData | null>(null);
   const [payslipHistory, setPayslipHistory] = useState<PayslipData[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
+  const hasFetchedPayslips = React.useRef(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
@@ -61,9 +64,10 @@ function AppContent() {
           iconColor: 'text-slate-400',
           title: item.title,
           desc: item.content,
-          time: new Date(item.created_at).toLocaleDateString(),
+          time: formatDate(item.created_at),
           category: item.category as any,
-          recipient_id: item.recipient_id
+          recipient_id: item.recipient_id,
+          is_read: item.is_read
         })));
       }
     };
@@ -84,10 +88,13 @@ function AppContent() {
   useEffect(() => {
     if (user && (activeTab === 'payslip' || activeTab === 'dashboard')) {
       const fetchPayslips = async () => {
-        setLoadingPayslips(true);
+        if (!hasFetchedPayslips.current) {
+          setLoadingPayslips(true);
+        }
         try {
-          const data = await payslipService.getMyPayslips(user.id);
+          const data = await payslipService.getMyPayslips(user.id, 'approved');
           setPayslipHistory(data);
+          hasFetchedPayslips.current = true;
         } catch (error) {
           console.error("Failed to fetch payslips", error);
         } finally {
@@ -173,12 +180,13 @@ function AppContent() {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:pt-6 lg:px-10 lg:pb-10 relative">
           <Suspense fallback={<LoadingFallback />}>
-            {activeTab === 'dashboard' && (
-              viewingPayslip ? (
+            <div className={activeTab === 'dashboard' ? 'block h-full' : 'hidden'}>
+              {viewingPayslip ? (
                 <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
               ) : (
                 <Dashboard 
                   user={user} 
+                  notifications={notifications}
                   onAction={(tab) => {
                     if (tab === 'request-time-off') {
                       setTimeOffModalDefaultOpen(true);
@@ -195,32 +203,55 @@ function AppContent() {
                     }
                   }} 
                 />
-              )
-            )}
-            {activeTab === 'calendar' && <Calendar user={user} />}
-            {activeTab === 'tasks' && <Tasks user={user} />}
-            {activeTab === 'employees' && <Employees />}
-            {activeTab === 'attendance' && <Attendance user={user} />}
-            {/* Placeholders for new tabs */}
-            {activeTab === 'profile' && <Profile user={user} onUpdate={(u) => setUser(u)} />}
-            {activeTab === 'payslip' && (
-              viewingPayslip ? (
+              )}
+            </div>
+            
+            <div className={activeTab === 'calendar' ? 'block h-full' : 'hidden'}>
+              <Calendar user={user} />
+            </div>
+
+            <div className={activeTab === 'tasks' ? 'block h-full' : 'hidden'}>
+              <Tasks user={user} />
+            </div>
+
+            <div className={activeTab === 'employees' ? 'block h-full' : 'hidden'}>
+              <Employees />
+            </div>
+
+            <div className={activeTab === 'attendance' ? 'block h-full' : 'hidden'}>
+              <Attendance user={user} />
+            </div>
+
+            <div className={activeTab === 'profile' ? 'block h-full' : 'hidden'}>
+              <Profile user={user} onUpdate={(u) => setUser(u)} />
+            </div>
+
+            <div className={activeTab === 'payslip' ? 'block h-full' : 'hidden'}>
+              {viewingPayslip ? (
                 <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
               ) : (
                 loadingPayslips ? <LoadingFallback /> :
                 <PayslipHistory history={payslipHistory} onSelect={(p) => setViewingPayslip(p)} />
-              )
-            )}
-            {activeTab === 'timeoff' && (
+              )}
+            </div>
+
+            <div className={activeTab === 'timeoff' ? 'block h-full' : 'hidden'}>
               <Away 
                 user={user} 
                 initialTab="my-requests" 
                 defaultOpenModal={timeOffModalDefaultOpen} 
               />
-            )}
-            {activeTab === 'documents' && <Documents />}
-            {activeTab === 'form' && <Form />}
-            {activeTab === 'finance' && (
+            </div>
+
+            <div className={activeTab === 'documents' ? 'block h-full' : 'hidden'}>
+              <Documents />
+            </div>
+
+            <div className={activeTab === 'form' ? 'block h-full' : 'hidden'}>
+              <Form />
+            </div>
+
+            <div className={activeTab === 'finance' ? 'block h-full' : 'hidden'}>
               <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
                   <span className="text-4xl">💰</span>
@@ -231,14 +262,38 @@ function AppContent() {
                   Coming Soon
                 </div>
               </div>
-            )}
-            {activeTab === 'settings' && <Settings />}
-            {activeTab === 'dkg-tool' && <DkgTool user={user} />}
+            </div>
+
+            <div className={activeTab === 'settings' ? 'block h-full' : 'hidden'}>
+              <Settings />
+            </div>
+
+            <div className={activeTab === 'dkg-tool' ? 'block h-full' : 'hidden'}>
+              <DkgTool user={user} />
+            </div>
             
             {/* Manager specific tabs */}
-            {activeTab === 'team-status' && <TeamStatus user={user} />}
-            {activeTab === 'approvals' && <Away user={user} initialTab="approvals" />}
-            {activeTab === 'payslip-approvals' && <PayslipApprovals user={user} />}
+            <div className={activeTab === 'team-status' ? 'block h-full' : 'hidden'}>
+              <TeamStatus user={user} />
+            </div>
+
+            <div className={activeTab === 'approvals' ? 'block h-full' : 'hidden'}>
+              <Away user={user} initialTab="approvals" />
+            </div>
+
+            <div className={activeTab === 'payslip-approvals' ? 'block h-full' : 'hidden'}>
+              <PayslipApprovals user={user} />
+            </div>
+
+            {(user.role === 'accountant' || 
+              user.role === 'ceo' || 
+              user.position?.toLowerCase() === 'ceo' || 
+              user.position?.toLowerCase() === 'accountant' ||
+              user.position?.toLowerCase() === 'kế toán') && (
+              <div className={activeTab === 'payslip-input' ? 'block h-full' : 'hidden'}>
+                <PayslipInput onSuccess={() => setActiveTab('payslip-approvals')} />
+              </div>
+            )}
           </Suspense>
         </div>
       </main>

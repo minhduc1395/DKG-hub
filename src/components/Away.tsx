@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, Plus, ChevronLeft, ChevronRight, X, Loader2 } from 'lucide-react';
+import { isWithinInterval, parseISO, startOfDay } from 'date-fns';
 import { User } from '../types';
 import { timeOffService, TimeOffBalance, TimeOffRequest } from '../services/timeOffService';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import { DatePicker } from './DatePicker';
+import { supabase } from '../lib/supabaseClient';
 
 interface AwayProps {
   user: User;
@@ -40,46 +42,23 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const year = currentDate.getFullYear();
 
   const getDayStatus = (day: number) => {
-    // Construct date for the cell (Local time)
-    const cellDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    cellDate.setHours(0, 0, 0, 0);
+    const cellDate = startOfDay(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
     
-    // Find request covering this date
     const request = history.find(req => {
       if (!req.startDate || !req.endDate) return false;
       
-      // Parse YYYY-MM-DD strings manually to ensure Local Time interpretation
-      // This avoids timezone offsets issues with new Date('YYYY-MM-DD')
-      // and ensures we are comparing apples to apples
-      let sYear, sMonth, sDay, eYear, eMonth, eDay;
-
-      if (req.startDate.includes('-')) {
-        [sYear, sMonth, sDay] = req.startDate.split('-').map(Number);
-      } else {
-        // Fallback if format is different (e.g. /)
-        const d = new Date(req.startDate);
-        sYear = d.getFullYear();
-        sMonth = d.getMonth() + 1;
-        sDay = d.getDate();
+      try {
+        const start = startOfDay(parseISO(req.startDate));
+        const end = startOfDay(parseISO(req.endDate));
+        
+        // Ensure start is before end for interval
+        const intervalStart = start < end ? start : end;
+        const intervalEnd = start < end ? end : start;
+        
+        return isWithinInterval(cellDate, { start: intervalStart, end: intervalEnd });
+      } catch (e) {
+        return false;
       }
-
-      if (req.endDate.includes('-')) {
-        [eYear, eMonth, eDay] = req.endDate.split('-').map(Number);
-      } else {
-         const d = new Date(req.endDate);
-         eYear = d.getFullYear();
-         eMonth = d.getMonth() + 1;
-         eDay = d.getDate();
-      }
-      
-      // Create dates in local time (month is 0-indexed in Date constructor)
-      const start = new Date(sYear, sMonth - 1, sDay);
-      start.setHours(0, 0, 0, 0);
-      
-      const end = new Date(eYear, eMonth - 1, eDay);
-      end.setHours(0, 0, 0, 0);
-      
-      return cellDate.getTime() >= start.getTime() && cellDate.getTime() <= end.getTime();
     });
 
     return request?.status;
@@ -140,10 +119,24 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let { startDate, endDate } = formData;
+      
+      // Ensure startDate is before or equal to endDate
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (start > end) {
+          // Swap them
+          [startDate, endDate] = [endDate, startDate];
+        }
+      }
+
       await timeOffService.submitRequest({
         userId: user.id,
         userName: user.name,
-        ...formData
+        ...formData,
+        startDate,
+        endDate
       });
       setIsModalOpen(false);
       setFormData({ type: 'Annual Leave', startDate: '', endDate: '', reason: '' });
@@ -153,17 +146,76 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
     }
   };
 
-  const handleApproval = async (id: string, status: 'approved' | 'rejected') => {
+  const handleApproval = async (id: string, status: string) => {
     try {
+      console.log(`Attempting to update request ${id} to status: ${status}`);
+      
+      // Diagnostic: Check if we are the manager
+      const request = approvals.find(r => r.id === id) || approvalHistory.find(r => r.id === id);
+      if (request) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('manager_id, full_name')
+          .eq('id', request.userId)
+          .single();
+          
+        if (profile) {
+          console.log(`[Diagnostic] Requester: ${profile.full_name}, Manager ID: ${profile.manager_id}, Current User: ${user.id}`);
+          
+          if (profile.manager_id !== user.id) {
+            console.warn(`[Diagnostic] Mismatch! You are not the assigned manager (${profile.manager_id}) for this user.`);
+            
+            // Attempt to auto-claim if manager_id is null
+            if (!profile.manager_id) {
+               if (confirm(`User ${profile.full_name} has no manager assigned. Do you want to assign yourself as their manager to approve this request?`)) {
+                 const { error: claimError } = await supabase
+                   .from('profiles')
+                   .update({ manager_id: user.id })
+                   .eq('id', request.userId);
+                   
+                 if (claimError) {
+                   console.error('Failed to claim user:', claimError);
+                   alert('Failed to assign yourself as manager.');
+                   return;
+                 }
+                 console.log('Successfully assigned as manager. Retrying approval...');
+               } else {
+                 return;
+               }
+            } else {
+               // If manager is set but different, ask to override?
+               if (confirm(`User ${profile.full_name} is assigned to another manager. Do you want to override and assign yourself?`)) {
+                 const { error: claimError } = await supabase
+                   .from('profiles')
+                   .update({ manager_id: user.id })
+                   .eq('id', request.userId);
+                   
+                 if (claimError) {
+                   console.error('Failed to claim user:', claimError);
+                   alert('Failed to re-assign yourself as manager.');
+                   return;
+                 }
+                 console.log('Successfully re-assigned as manager. Retrying approval...');
+               } else {
+                 return;
+               }
+            }
+          }
+        }
+      }
+
       await timeOffService.updateRequestStatus(id, status);
-      loadData();
-    } catch (error) {
+      console.log(`Successfully updated request ${id} to status: ${status}`);
+      await loadData();
+    } catch (error: any) {
       console.error('Error updating status:', error);
+      alert(`Failed to update status: ${error.message || 'Unknown error'}`);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const normalizedStatus = status.toLowerCase();
+    switch (normalizedStatus) {
       case 'approved':
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 uppercase tracking-wider flex items-center gap-1 w-fit"><CheckCircle2 className="w-3 h-3" /> Approved</span>;
       case 'rejected':
@@ -366,12 +418,21 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                         {approvalHistory.map((req) => (
                           <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                                {req.userName.charAt(0)}
-                              </div>
+                              {req.userAvatar ? (
+                                <img 
+                                  src={req.userAvatar} 
+                                  alt={req.userName} 
+                                  className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                                  {req.userName.charAt(0)}
+                                </div>
+                              )}
                               <div className="flex flex-col">
                                 <span className="text-sm font-bold text-white">{req.userName}</span>
-                                <span className="text-xs text-slate-400">{req.type} • {req.startDate} to {req.endDate}</span>
+                                <span className="text-xs text-slate-400">{req.type} • {formatDate(req.startDate)} to {formatDate(req.endDate)}</span>
                                 <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
                               </div>
                             </div>
@@ -393,14 +454,18 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                               <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
                               <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">From</th>
                               <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">To</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Days</th>
+                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5">
                             {history.map((req) => {
-                              const start = new Date(req.startDate);
-                              const end = new Date(req.endDate);
+                              // Ensure dates are in correct order for calculation
+                              const d1 = new Date(req.startDate);
+                              const d2 = new Date(req.endDate);
+                              const start = d1 < d2 ? d1 : d2;
+                              const end = d1 < d2 ? d2 : d1;
+                              
                               const diffTime = Math.abs(end.getTime() - start.getTime());
                               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
                               return (
@@ -411,11 +476,17 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                                       <span className="text-xs text-slate-500">{req.reason}</span>
                                     </div>
                                   </td>
-                                  <td className="py-4 text-sm font-medium text-slate-300">{req.startDate}</td>
-                                  <td className="py-4 text-sm font-medium text-slate-300">{req.endDate}</td>
-                                  <td className="py-4 text-sm font-medium text-slate-300">{diffDays}</td>
-                                  <td className="py-4">
-                                    {getStatusBadge(req.status)}
+                                  <td className="py-4 text-sm font-medium text-slate-300">
+                                    {formatDate(req.startDate < req.endDate ? req.startDate : req.endDate)}
+                                  </td>
+                                  <td className="py-4 text-sm font-medium text-slate-300">
+                                    {formatDate(req.startDate < req.endDate ? req.endDate : req.startDate)}
+                                  </td>
+                                  <td className="py-4 text-sm font-medium text-slate-300 text-center">{diffDays}</td>
+                                  <td className="py-4 text-center">
+                                    <div className="flex justify-center">
+                                      {getStatusBadge(req.status)}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -435,25 +506,34 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                       {approvals.map((req) => (
                         <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                              {req.userName.charAt(0)}
-                            </div>
+                            {req.userAvatar ? (
+                               <img 
+                                 src={req.userAvatar} 
+                                 alt={req.userName} 
+                                 className="w-10 h-10 rounded-full object-cover border border-white/10"
+                                 referrerPolicy="no-referrer"
+                               />
+                             ) : (
+                               <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
+                                 {req.userName.charAt(0)}
+                               </div>
+                             )}
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-white">{req.userName}</span>
-                              <span className="text-xs text-slate-400">{req.type} • {req.startDate} to {req.endDate}</span>
+                              <span className="text-xs text-slate-400">{req.type} • {formatDate(req.startDate)} to {formatDate(req.endDate)}</span>
                               <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <button 
-                              onClick={() => handleApproval(req.id, 'rejected')}
+                              onClick={() => handleApproval(req.id, 'Rejected')}
                               className="relative group overflow-hidden rounded-xl transition-all duration-300 transform active:scale-95"
                             >
                               <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-sm border border-rose-500/20 group-hover:bg-rose-500/20 transition-all rounded-xl" />
                               <span className="relative z-10 px-4 py-2 text-rose-400 text-xs font-bold block text-center">Reject</span>
                             </button>
                             <button 
-                              onClick={() => handleApproval(req.id, 'approved')}
+                              onClick={() => handleApproval(req.id, 'Approved')}
                               className="relative group overflow-hidden rounded-xl transition-all duration-300 transform active:scale-95"
                             >
                               <div className="absolute inset-0 bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/20 group-hover:bg-emerald-500/20 transition-all rounded-xl" />

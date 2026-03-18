@@ -9,9 +9,13 @@ export interface EmployeePerformance {
   position?: string;
   tasksCompleted: number;
   tasksPending: number;
+  tasksInProgress: number;
+  totalTasks: number;
   tasksOverdue: number;
   lateDays: number;
-  attendanceRate: number;
+  otHours: number;
+  daysOff: number;
+  tasks: any[];
 }
 
 export const teamService = {
@@ -35,10 +39,15 @@ export const teamService = {
 
       if (profilesError) throw profilesError;
 
-      // 2. Fetch all tasks
+      // 2. Fetch all tasks and their multi-assignees
       const { data: tasks, error: tasksError } = await supabase
         .from('tasks')
-        .select('id, assignee_id, status, deadline');
+        .select(`
+          *,
+          assignee:assignee_id(full_name),
+          assigner:assigner_id(full_name),
+          task_assignees(user_id)
+        `);
 
       if (tasksError) throw tasksError;
 
@@ -50,7 +59,7 @@ export const teamService = {
 
       const { data: attendance, error: attendanceError } = await supabase
         .from('attendance_logs')
-        .select('employee_id, status, date')
+        .select('employee_id, status, date, work_hours')
         .gte('date', startOfMonthStr);
 
       if (attendanceError) {
@@ -58,26 +67,63 @@ export const teamService = {
         // Don't throw, just continue with empty attendance
       }
 
-      // 4. Aggregate data
+      // 4. Fetch time off balances
+      const { data: timeOffBalances, error: timeOffError } = await supabase
+        .from('time_off_balances')
+        .select('employee_id, used');
+
+      if (timeOffError) {
+        console.warn('Error fetching time off balances:', timeOffError);
+      }
+
+      // 5. Aggregate data
       const performanceData: EmployeePerformance[] = (profiles || []).map(profile => {
-        const jobPosition = Array.isArray(profile.job_positions) ? profile.job_positions[0] : profile.job_positions;
-        const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
+        // Handle potentially nested array structure from Supabase join
+        const jobPositionData = profile.job_positions;
+        const jobPosition = Array.isArray(jobPositionData) ? jobPositionData[0] : jobPositionData;
+        
+        const roleDataRaw = jobPosition?.roles;
+        const roleData = Array.isArray(roleDataRaw) ? roleDataRaw[0] : roleDataRaw;
+        
         const roleName = roleData?.role_name || 'Staff';
 
-        const employeeTasks = tasks.filter(t => t.assignee_id === profile.id);
+        // Filter tasks for this employee (either primary assignee or in multi-assignees)
+        const employeeTasks = (tasks || []).filter(t => {
+          const isPrimary = t.assignee_id === profile.id;
+          const isMulti = t.task_assignees?.some((ta: any) => ta.user_id === profile.id);
+          return isPrimary || isMulti;
+        }).map(t => ({
+          ...t,
+          assigneeName: t.assignee?.full_name || 'Unknown',
+          assignerName: t.assigner?.full_name || 'Unknown'
+        }));
         const employeeAttendance = (attendance || []).filter(a => a.employee_id === profile.id);
+        const employeeTimeOff = (timeOffBalances || []).find(t => t.employee_id === profile.id);
 
         const tasksCompleted = employeeTasks.filter(t => t.status === 'Done').length;
-        const tasksPending = employeeTasks.filter(t => ['Todo', 'In Progress', 'Review'].includes(t.status)).length;
+        const tasksInProgress = employeeTasks.filter(t => t.status === 'In Progress').length;
+        const tasksPending = employeeTasks.filter(t => ['Todo', 'Review'].includes(t.status)).length;
+        const totalTasks = employeeTasks.length;
         
-        const today = new Date().toISOString().split('T')[0];
-        const tasksOverdue = employeeTasks.filter(t => t.status !== 'Done' && t.deadline < today).length;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tasksOverdue = employeeTasks.filter(t => {
+          if (t.status === 'Done') return false;
+          if (!t.deadline) return false;
+          const deadline = new Date(t.deadline);
+          deadline.setHours(0, 0, 0, 0);
+          return deadline < today;
+        }).length;
 
         const lateDays = employeeAttendance.filter(a => a.status === 'Late').length;
         
-        // Calculate attendance rate (present/late days / 22 working days * 100)
-        const presentDays = employeeAttendance.filter(a => ['Present', 'Late'].includes(a.status)).length;
-        const attendanceRate = Math.min(100, Math.round((presentDays / 22) * 100));
+        // Calculate OT hours (sum of work_hours > 8)
+        const otHours = employeeAttendance.reduce((sum, a) => {
+          const hours = a.work_hours || 0;
+          return sum + (hours > 8 ? hours - 8 : 0);
+        }, 0);
+
+        const daysOff = employeeTimeOff?.used || 0;
 
         return {
           id: profile.id,
@@ -88,9 +134,13 @@ export const teamService = {
           position: jobPosition?.title,
           tasksCompleted,
           tasksPending,
+          tasksInProgress,
+          totalTasks,
           tasksOverdue,
           lateDays,
-          attendanceRate
+          otHours: Math.round(otHours * 10) / 10,
+          daysOff,
+          tasks: employeeTasks
         };
       });
 

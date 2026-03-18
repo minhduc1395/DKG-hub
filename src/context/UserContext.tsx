@@ -15,20 +15,22 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const fetchingProfileRef = React.useRef(false);
 
   useEffect(() => {
     // Check active session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error("Session check error:", error);
-        // If session is invalid (e.g. invalid refresh token), ensure we are logged out
         setUser(null);
         setIsLoading(false);
         return;
       }
 
       if (session?.user) {
-        fetchProfile(session.user.id, session.user.email || '');
+        if (!user && !fetchingProfileRef.current) {
+          fetchProfile(session.user.id, session.user.email || '');
+        }
       } else {
         setIsLoading(false);
       }
@@ -42,34 +44,40 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_OUT') {
           setUser(null);
           setIsLoading(false);
+          fetchingProfileRef.current = false;
           return;
         }
 
         if (session?.user) {
-          // Only fetch profile if we don't have it or if the user changed
-          // This prevents unnecessary fetches on token refresh
-          setUser(prev => {
-            if (prev?.id === session.user.id) return prev;
-            fetchProfile(session.user.id, session.user.email || '');
-            return prev;
-          });
+          // Only fetch if we don't have a user OR if the user ID has changed
+          // AND we aren't currently fetching
+          if ((!user || user.id !== session.user.id) && !fetchingProfileRef.current) {
+             fetchProfile(session.user.id, session.user.email || '');
+          }
         } else {
-          setUser(null);
-          setIsLoading(false);
+          // No session user, but not explicitly signed out (e.g. initial load state)
+          if (!isLoading && user) {
+             // If we were logged in but now aren't, clear state
+             setUser(null);
+          }
+           setIsLoading(false);
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [user]); // Add user dependency to correctly check current state
 
   const fetchProfile = async (userId: string, email: string) => {
+    if (fetchingProfileRef.current) return;
+    fetchingProfileRef.current = true;
+
     try {
-      // Fetch profile with nested relations
+      // Fetch profile with specific fields
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          *,
+          id, full_name, avatar_url, department, manager_id, employee_id, dob, gender, joining_date, contract_type, line_manager, company_email, personal_email, phone, permanent_address, temporary_address, id_card_number, id_card_date, id_card_place, bank_account_number, bank_name, bank_branch,
           job_positions (
             title,
             roles (
@@ -87,26 +95,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error fetching profile:', error);
-        // If profile doesn't exist, we might want to create a default one or handle it
       }
 
       if (data) {
-        // Log raw data for debugging
-        console.log('Raw Profile Data:', data);
-        console.log('Job Positions Raw:', data.job_positions);
-
         // Handle potential array or object response from Supabase relations
         const jobPosition = Array.isArray(data.job_positions) ? data.job_positions[0] : data.job_positions;
-        console.log('Processed Job Position:', jobPosition);
-
         const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
-        console.log('Processed Role Data:', roleData);
         
         const rawRoleName = roleData?.role_name;
         // Normalize role to lowercase and default to 'staff'
         const roleName = rawRoleName ? rawRoleName.toLowerCase() : 'staff';
-        
-        console.log('Final Role Name:', roleName);
 
         // Extract permissions
         const permissionsList = roleData?.role_permissions || [];
@@ -114,13 +112,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
           ? permissionsList.map((rp: any) => rp.features?.feature_key).filter(Boolean)
           : [];
 
+        // Check local storage for cached avatar
+        let avatarUrl = data.avatar_url || 'https://picsum.photos/seed/user/100/100';
+        try {
+          const cachedAvatar = localStorage.getItem(`avatar_${userId}`);
+          if (cachedAvatar) {
+            avatarUrl = cachedAvatar;
+          }
+        } catch (e) {
+          console.warn('Failed to read avatar from localStorage:', e);
+        }
+
         setUser({
           id: userId,
           email: email,
-          role: roleName as 'staff' | 'manager',
+          role: roleName as any, // Use any or Role to avoid TS errors if Role is not fully synced
           permissions: permissions,
           name: data.full_name || 'Unknown',
-          avatar: data.avatar_url || 'https://picsum.photos/seed/user/100/100',
+          avatar: avatarUrl,
           department: data.department || '',
           manager_id: data.manager_id,
           employeeId: data.employee_id,
@@ -158,6 +167,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.error('Unexpected error:', err);
     } finally {
       setIsLoading(false);
+      fetchingProfileRef.current = false;
     }
   };
 

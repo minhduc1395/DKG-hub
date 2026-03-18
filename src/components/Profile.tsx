@@ -72,7 +72,11 @@ export function Profile({ user, onUpdate }: ProfileProps) {
   };
 
   const handleAvatarSave = (newUrl: string) => {
-    handleChange('avatar', newUrl);
+    setFormData(prev => ({ ...prev, avatar: newUrl }));
+    // Since AvatarPicker already updated the database, we update the global state too
+    if (onUpdate) {
+      onUpdate({ ...formData, avatar: newUrl });
+    }
   };
 
   // Styles for inputs
@@ -86,6 +90,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
         onClose={() => setIsAvatarPickerOpen(false)} 
         onSave={handleAvatarSave}
         currentAvatar={formData.avatar}
+        userId={user.id}
       />
       
       <div className="max-w-5xl mx-auto pb-24 space-y-8 relative animate-in fade-in duration-500">

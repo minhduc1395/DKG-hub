@@ -27,7 +27,11 @@ export function Login() {
         setError(error.message);
       }
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      if (err.message === 'Failed to fetch') {
+        setError('Connection error: Please check your Supabase configuration and internet connection.');
+      } else {
+        setError(err.message || 'An unexpected error occurred');
+      }
     } finally {
       setIsLoading(false);
     }

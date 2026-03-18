@@ -4,7 +4,7 @@ import { LayoutDashboard, User as UserIcon, CalendarClock, FileText, Settings, L
 import { cn } from '../lib/utils';
 import { User } from '../types';
 
-export type Tab = 'dashboard' | 'profile' | 'timeoff' | 'documents' | 'form' | 'finance' | 'settings' | 'employees' | 'attendance' | 'team-status' | 'approvals' | 'calendar' | 'payslip' | 'payslip-approvals' | 'dkg-tool' | 'tasks';
+export type Tab = 'dashboard' | 'profile' | 'timeoff' | 'documents' | 'form' | 'finance' | 'settings' | 'employees' | 'attendance' | 'team-status' | 'approvals' | 'calendar' | 'payslip' | 'payslip-approvals' | 'payslip-input' | 'dkg-tool' | 'tasks';
 
 interface SidebarProps {
   activeTab: Tab;
@@ -17,7 +17,12 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = false, onClose }: SidebarProps) {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
-  const isManager = user.role === 'manager';
+  const isAccountantOrCEO = user.role === 'accountant' || 
+                            user.role === 'ceo' || 
+                            user.position?.toLowerCase() === 'ceo' || 
+                            user.position?.toLowerCase() === 'accountant' ||
+                            user.position?.toLowerCase() === 'kế toán';
+  const isManager = user.role === 'manager' || isAccountantOrCEO;
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
@@ -34,6 +39,10 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
     { id: 'approvals', label: 'Leave Approvals', icon: CheckSquare },
     { id: 'payslip-approvals', label: 'Payslip Approvals', icon: ClipboardList },
     { id: 'finance', label: 'Finance', icon: TrendingUp },
+  ] as const;
+
+  const toolItems = [
+    { id: 'payslip-input', label: 'Payslip Input', icon: FileText },
   ] as const;
 
   const handleTabClick = (tab: Tab) => {
@@ -145,7 +154,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
             );
           })}
 
-          {user.role === 'manager' && (
+          {isManager && (
             <>
               <div className="px-4 py-2 mt-4">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Management Hub</span>
@@ -169,6 +178,33 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
                   </button>
                 );
               })}
+
+              {isAccountantOrCEO && (
+                <>
+                  <div className="px-4 py-2 mt-4">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tool</span>
+                  </div>
+                  {toolItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleTabClick(item.id as Tab)}
+                        className={cn(
+                          "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200",
+                          isActive 
+                            ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
+                            : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
+                        )}
+                      >
+                        <Icon className={cn("w-5 h-5", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
+                        <span className="text-sm font-semibold">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </nav>

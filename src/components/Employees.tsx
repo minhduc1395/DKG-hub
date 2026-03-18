@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Phone, MoreHorizontal, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useUser } from '../context/UserContext';
 
 interface Employee {
   id: string;
@@ -15,6 +16,7 @@ interface Employee {
 }
 
 export function Employees() {
+  const { user } = useUser();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,7 +110,7 @@ export function Employees() {
               
               <div className="relative mb-4">
                 <img 
-                  src={emp.avatar_url || ''} 
+                  src={(emp.id === user?.id ? user.avatar : emp.avatar_url) || ''} 
                   alt={emp.name} 
                   className="w-24 h-24 rounded-full object-cover border-4 border-white/10 shadow-xl"
                   referrerPolicy="no-referrer"

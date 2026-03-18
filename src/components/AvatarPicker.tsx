@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Link as LinkIcon, Grid, Image as ImageIcon } from 'lucide-react';
+import { X, Upload, Link as LinkIcon, Grid, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from '../lib/supabaseClient';
 
 interface AvatarPickerProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (url: string) => void;
   currentAvatar: string;
+  userId: string;
 }
 
 const defaultCategories = [
@@ -21,15 +23,18 @@ const defaultCategories = [
   { id: 'cute-9', label: 'Panda', url: 'https://api.dicebear.com/7.x/big-ears/svg?seed=Panda' },
 ];
 
-export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar }: AvatarPickerProps) {
+export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar, userId }: AvatarPickerProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'link' | 'default'>('upload');
   const [previewUrl, setPreviewUrl] = useState<string>(currentAvatar);
   const [linkInput, setLinkInput] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewUrl(reader.result as string);
@@ -49,8 +54,92 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar }: AvatarP
     }
   };
 
-  const handleSave = () => {
-    onSave(previewUrl);
+  const handleSave = async () => {
+    let finalUrl = previewUrl;
+
+    if (activeTab === 'upload' && selectedFile) {
+      setIsUploading(true);
+      try {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${userId}-${Date.now()}.${fileExt}`;
+        const filePath = `${userId}/${fileName}`;
+
+        // Try 'avatars' first, then 'avatar' as fallback
+        let bucketName = 'avatars';
+        let { error: uploadError } = await supabase.storage
+          .from(bucketName)
+          .upload(filePath, selectedFile, {
+            upsert: true,
+            contentType: selectedFile.type
+          });
+
+        if (uploadError) {
+          bucketName = 'avatar';
+          const { error: retryError } = await supabase.storage
+            .from(bucketName)
+            .upload(filePath, selectedFile, {
+              upsert: true,
+              contentType: selectedFile.type
+            });
+          
+          if (retryError) {
+            console.error('Upload failed for both buckets:', uploadError, retryError);
+            // If both fail, we'll use the base64 preview as a last resort
+            // but warn the user it might be too large for some DB fields
+            finalUrl = previewUrl;
+          } else {
+            const { data: { publicUrl } } = supabase.storage
+              .from(bucketName)
+              .getPublicUrl(filePath);
+            finalUrl = publicUrl;
+          }
+        } else {
+          const { data: { publicUrl } } = supabase.storage
+            .from(bucketName)
+            .getPublicUrl(filePath);
+          finalUrl = publicUrl;
+        }
+      } catch (error) {
+        console.error('Error uploading avatar:', error);
+        // Fallback to previewUrl (base64) if upload fails
+        finalUrl = previewUrl;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    // Save to database immediately for better UX
+    try {
+      // Use upsert instead of update to handle cases where profile might not exist yet
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .upsert({ 
+          id: userId,
+          avatar_url: finalUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      
+      if (dbError) {
+        console.error('Error updating profile avatar in database:', dbError);
+        // If it's an RLS error, we should inform the user more clearly in console
+        if (dbError.message.includes('row-level security')) {
+          console.warn('RLS Policy Error: Please ensure the "profiles" table has an UPDATE/INSERT policy for authenticated users.');
+        }
+      } else {
+        alert('Avatar updated successfully!');
+      }
+    } catch (error) {
+      console.error('Unexpected error updating profile avatar:', error);
+    }
+
+    // Save to localStorage for local persistence/cache
+    try {
+      localStorage.setItem(`avatar_${userId}`, finalUrl);
+    } catch (e) {
+      console.warn('Failed to save avatar to localStorage:', e);
+    }
+
+    onSave(finalUrl);
     onClose();
   };
 
@@ -189,9 +278,17 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar }: AvatarP
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/20 transition-all"
+                disabled={isUploading}
+                className="flex-1 py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-lg hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Save
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Save'
+                )}
               </button>
             </div>
           </motion.div>

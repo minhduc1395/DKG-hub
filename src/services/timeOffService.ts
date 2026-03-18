@@ -10,11 +10,12 @@ export interface TimeOffRequest {
   id: string;
   userId: string;
   userName: string;
+  userAvatar?: string;
   type: string;
   startDate: string;
   endDate: string;
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: string; // Changed from union to string to support case variations
   createdAt: string;
 }
 
@@ -56,7 +57,7 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles(full_name)
+          profiles(full_name, avatar_url)
         `)
         .eq('employee_id', userId)
         .order('created_at', { ascending: false });
@@ -88,10 +89,12 @@ export const timeOffService = {
       return (data || []).map((req: any) => {
         const profiles = req.profiles;
         const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        const userAvatar = Array.isArray(profiles) ? profiles[0]?.avatar_url : profiles?.avatar_url;
         return {
           id: req.id,
           userId: req.employee_id,
           userName: userName || 'Unknown',
+          userAvatar: userAvatar,
           type: req.type,
           startDate: req.start_date,
           endDate: req.end_date,
@@ -121,7 +124,7 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(full_name)
+          profiles!time_off_requests_employee_id_fkey(full_name, avatar_url)
         `)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
@@ -131,10 +134,12 @@ export const timeOffService = {
       return (data || []).map((req: any) => {
         const profiles = req.profiles;
         const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        const userAvatar = Array.isArray(profiles) ? profiles[0]?.avatar_url : profiles?.avatar_url;
         return {
           id: req.id,
           userId: req.employee_id,
           userName: userName || 'Unknown',
+          userAvatar: userAvatar,
           type: req.type,
           startDate: req.start_date,
           endDate: req.end_date,
@@ -162,7 +167,7 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(full_name)
+          profiles!time_off_requests_employee_id_fkey(full_name, avatar_url)
         `)
         .neq('status', 'pending')
         .order('created_at', { ascending: false });
@@ -172,10 +177,12 @@ export const timeOffService = {
       return (data || []).map((req: any) => {
         const profiles = req.profiles;
         const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+        const userAvatar = Array.isArray(profiles) ? profiles[0]?.avatar_url : profiles?.avatar_url;
         return {
           id: req.id,
           userId: req.employee_id,
           userName: userName || 'Unknown',
+          userAvatar: userAvatar,
           type: req.type,
           startDate: req.start_date,
           endDate: req.end_date,
@@ -211,7 +218,7 @@ export const timeOffService = {
           reason,
           status,
           created_at,
-          profiles!time_off_requests_employee_id_fkey(full_name)
+          profiles!time_off_requests_employee_id_fkey(full_name, avatar_url)
         `)
         .single();
 
@@ -221,11 +228,13 @@ export const timeOffService = {
 
       const profiles = insertedData.profiles;
       const userName = Array.isArray(profiles) ? profiles[0]?.full_name : profiles?.full_name;
+      const userAvatar = Array.isArray(profiles) ? profiles[0]?.avatar_url : profiles?.avatar_url;
 
       return {
         id: insertedData.id,
         userId: insertedData.employee_id,
         userName: userName || data.userName,
+        userAvatar: userAvatar,
         type: insertedData.type,
         startDate: insertedData.start_date,
         endDate: insertedData.end_date,
@@ -239,14 +248,67 @@ export const timeOffService = {
     }
   },
 
-  async updateRequestStatus(requestId: string, status: 'approved' | 'rejected'): Promise<void> {
+  async updateRequestStatus(requestId: string, status: string): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log(`[Debug] User ID: ${(await supabase.auth.getUser()).data.user?.id}`);
+      
+      // 1. Verify existence and visibility
+      const { data: existingRequest, error: fetchError } = await supabase
         .from('time_off_requests')
-        .update({ status })
-        .eq('id', requestId);
+        .select('*')
+        .eq('id', requestId)
+        .single();
+        
+      if (fetchError) {
+        console.error('[Debug] Could not fetch request before update:', fetchError);
+        throw new Error(`Could not find request with ID ${requestId}. It may not exist or you don't have permission to view it.`);
+      }
+      
+      console.log('[Debug] Found request:', existingRequest);
 
-      if (error) throw error;
+      // 2. Try Title Case first (e.g. 'Approved')
+      const titleCaseStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+      console.log(`Updating request ${requestId} to ${titleCaseStatus}`);
+      
+      const { data, error } = await supabase
+        .from('time_off_requests')
+        .update({ status: titleCaseStatus })
+        .eq('id', requestId)
+        .select();
+
+      if (!error && data && data.length > 0) {
+         console.log('Update successful with Title Case');
+         return;
+      }
+
+      if (error) {
+        console.warn('Title Case update returned error:', error);
+      } else {
+        console.warn('Title Case update returned no data, trying lowercase...');
+      }
+      
+      // Try lowercase (e.g. 'approved')
+      const lowerCaseStatus = status.toLowerCase();
+      console.log(`Updating request ${requestId} to ${lowerCaseStatus}`);
+
+      const { data: dataLower, error: errorLower } = await supabase
+        .from('time_off_requests')
+        .update({ status: lowerCaseStatus })
+        .eq('id', requestId)
+        .select();
+
+      if (errorLower) {
+        console.error('Supabase update error (lowercase):', errorLower);
+        throw errorLower;
+      }
+      
+      if (!dataLower || dataLower.length === 0) {
+        console.warn('Update succeeded but no rows were modified. Check if ID exists or RLS policies.');
+        throw new Error('No rows updated. Check permissions or if request exists.');
+      }
+      
+      console.log('Update successful with lowercase');
+
     } catch (error) {
       console.error('Error updating request status:', error);
       throw error;

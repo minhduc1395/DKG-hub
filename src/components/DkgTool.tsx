@@ -56,7 +56,12 @@ export function DkgTool({ user }: DkgToolProps) {
     fetchTools();
   }, []);
 
-  const dynamicCategories = ['All', ...new Set(tools.map(t => t.category).filter(Boolean))];
+  const normalizeCategory = (cat: string | undefined) => {
+    if (!cat) return '';
+    return cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+  };
+
+  const dynamicCategories = ['All', ...new Set(tools.map(t => normalizeCategory(t.category)).filter(Boolean))];
 
   const getIcon = (iconName: string) => {
     switch (iconName?.toLowerCase()) {
@@ -72,7 +77,9 @@ export function DkgTool({ user }: DkgToolProps) {
   const filteredTools = tools.filter(tool => {
     const matchesSearch = (tool.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
                           (tool.description?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || tool.category === activeCategory;
+    
+    const normalizedToolCategory = normalizeCategory(tool.category);
+    const matchesCategory = activeCategory === 'All' || normalizedToolCategory === activeCategory;
     
     // Check if user has permission
     const allowedRoles = Array.isArray(tool.allowed_roles) 
@@ -172,7 +179,7 @@ export function DkgTool({ user }: DkgToolProps) {
                 <p className="text-sm text-slate-400 line-clamp-2 group-hover:text-slate-300 transition-colors">{tool.description}</p>
                 <div className="mt-4 flex items-center gap-2">
                   <span className="px-2 py-1 rounded-md bg-white/5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border border-white/5">
-                    {tool.category}
+                    {normalizeCategory(tool.category)}
                   </span>
                 </div>
               </a>

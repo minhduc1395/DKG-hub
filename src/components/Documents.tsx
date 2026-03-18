@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, FileText, FileImage, FileCode, Download, Eye, MoreVertical, Folder, Clock, Upload, CheckSquare, X, CheckCircle, XCircle, Book, FileSignature, AlertCircle, File as FileIcon, Loader2 } from 'lucide-react';
 import { Document, DocumentWithHistory } from '../types';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -57,7 +57,7 @@ export function Documents() {
         department: doc.department,
         type: doc.type,
         size: doc.size,
-        updatedAt: new Date(doc.updated_at || doc.created_at).toLocaleDateString(),
+        updatedAt: formatDate(doc.updated_at || doc.created_at),
         author: doc.author,
         tags: doc.tags || [],
         version: doc.version,
@@ -70,7 +70,7 @@ export function Documents() {
             document_id: h.document_id,
             action: h.action,
             user: h.user_name || h.user,
-            timestamp: new Date(h.created_at).toLocaleString()
+            timestamp: formatDate(h.created_at)
           }))
       }));
 

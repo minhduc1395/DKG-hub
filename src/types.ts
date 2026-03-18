@@ -1,4 +1,4 @@
-export type Role = 'staff' | 'manager';
+export type Role = 'staff' | 'manager' | 'accountant' | 'ceo';
 
 export interface AuthUser {
   id: string;

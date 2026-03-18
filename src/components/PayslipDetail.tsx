@@ -6,11 +6,20 @@ export interface PayslipData {
   id: string;
   month: string;
   year: number;
+  // Working Summary
+  workingDays?: number;
+  otHours?: number;
+  annualLeave?: number;
+  compLeave?: number;
+  unpaidLeave?: number;
+  // Income
   baseSalary: number;
   otAmount: number;
-  performanceBonus: number;
-  yearlyBonus: number;
+  bonus: number;
+  commission: number;
+  allowance: number;
   allowances: { name: string; amount: number }[];
+  // Deductions
   insurance: {
     bhxh: number;
     bhyt: number;
@@ -18,6 +27,17 @@ export interface PayslipData {
   };
   tax: number;
   otherDeductions: number;
+  // Totals
+  assessableIncome?: number;
+  netSalary?: number;
+  // Company Contributions
+  companyContributions?: {
+    bhxh: number;
+    bhyt: number;
+    bhtn: number;
+    accidentInsurance: number;
+    tradeUnionFee: number;
+  };
 }
 
 interface PayslipDetailProps {
@@ -29,12 +49,13 @@ interface PayslipDetailProps {
 export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
   // Logic: Grouping data as requested
   const totalInsurance = data.insurance.bhxh + data.insurance.bhyt + data.insurance.bhtn;
-  const bonusAndPerformance = data.performanceBonus + data.yearlyBonus;
   
   const totalAllowances = data.allowances.reduce((sum, item) => sum + item.amount, 0);
-  const totalIncome = data.baseSalary + data.otAmount + bonusAndPerformance + totalAllowances;
+  const totalIncome = data.baseSalary + data.otAmount + data.bonus + data.commission + data.allowance + totalAllowances;
   const totalDeductions = totalInsurance + data.tax + data.otherDeductions;
-  const netSalary = totalIncome - totalDeductions;
+  
+  // Use netSalary from data if available, otherwise calculate
+  const netSalary = data.netSalary || (totalIncome - totalDeductions);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -80,11 +101,38 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
             </p>
           </div>
 
+          {/* Working Summary Section */}
+          {(data.workingDays !== undefined || data.otHours !== undefined || data.annualLeave !== undefined) && (
+            <div className="grid grid-cols-3 gap-2">
+              {data.workingDays !== undefined && (
+                <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Working</p>
+                  <p className="text-sm font-black text-white">{data.workingDays}d</p>
+                </div>
+              )}
+              {data.otHours !== undefined && (
+                <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">OT</p>
+                  <p className="text-sm font-black text-white">{data.otHours}h</p>
+                </div>
+              )}
+              {data.annualLeave !== undefined && (
+                <div className="bg-white/[0.02] rounded-2xl p-3 border border-white/5 text-center">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Leave</p>
+                  <p className="text-sm font-black text-white">{data.annualLeave}d</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Income Section */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-blue-400 mb-2">
-              <TrendingUp className="w-4 h-4" />
-              <span className="text-xs font-black uppercase tracking-widest">Income Details</span>
+            <div className="flex items-center justify-between text-blue-400 mb-2">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="text-xs font-black uppercase tracking-widest">Income Details</span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Gross Income</span>
             </div>
             
             <div className="space-y-3">
@@ -104,25 +152,49 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Wallet className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-slate-400 text-sm">Bonus & Performance</span>
+                  <span className="text-slate-400 text-sm">Bonus</span>
                 </div>
-                <span className="text-white font-bold">{formatCurrency(bonusAndPerformance)}</span>
+                <span className="text-white font-bold">{formatCurrency(data.bonus)}</span>
               </div>
 
-              {data.allowances.map((allowance, idx) => (
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="text-slate-400 text-sm">Commission</span>
+                </div>
+                <span className="text-white font-bold">{formatCurrency(data.commission)}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="text-slate-400 text-sm">Allowance</span>
+                </div>
+                <span className="text-white font-bold">{formatCurrency(data.allowance)}</span>
+              </div>
+
+              {data.allowances.length > 0 && data.allowances.map((allowance, idx) => (
                 <div key={idx} className="flex justify-between items-center">
                   <span className="text-slate-400 text-sm">{allowance.name}</span>
                   <span className="text-white font-bold">{formatCurrency(allowance.amount)}</span>
                 </div>
               ))}
+
+              <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                <span className="text-slate-300 text-sm font-bold">Total Gross Income</span>
+                <span className="text-blue-400 font-black">{formatCurrency(totalIncome)}</span>
+              </div>
             </div>
           </div>
 
           {/* Deductions Section */}
           <div className="space-y-4 pt-4 border-t border-white/5">
-            <div className="flex items-center gap-2 text-rose-400 mb-2">
-              <ShieldCheck className="w-4 h-4" />
-              <span className="text-xs font-black uppercase tracking-widest">Deductions</span>
+            <div className="flex items-center justify-between text-rose-400 mb-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span className="text-xs font-black uppercase tracking-widest">Deductions</span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Total Deductions</span>
             </div>
 
             <div className="space-y-3">
@@ -138,10 +210,15 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
 
               {data.otherDeductions > 0 && (
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-sm">Other Deductions</span>
+                  <span className="text-slate-400 text-sm">Others</span>
                   <span className="text-rose-300/80 font-bold">-{formatCurrency(data.otherDeductions)}</span>
                 </div>
               )}
+
+              <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                <span className="text-slate-300 text-sm font-bold">Total Deductions</span>
+                <span className="text-rose-400 font-black">-{formatCurrency(totalDeductions)}</span>
+              </div>
             </div>
           </div>
 

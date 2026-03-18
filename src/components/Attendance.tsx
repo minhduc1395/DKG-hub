@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Calendar as CalendarIcon, Clock, ArrowUpRight, ArrowDownRight, Loader2, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { formatDate } from '../lib/utils';
 
 interface AttendanceRecord {
   id: string;
@@ -164,7 +165,7 @@ export function Attendance({ user }: AttendanceProps) {
                       transition={{ delay: index * 0.05 }}
                       className="hover:bg-white/5 transition-colors"
                     >
-                      <td className="px-6 py-5 font-medium text-white">{log.date}</td>
+                      <td className="px-6 py-5 font-medium text-white">{formatDate(log.date)}</td>
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
                           <ArrowUpRight className="w-4 h-4 text-emerald-400" />

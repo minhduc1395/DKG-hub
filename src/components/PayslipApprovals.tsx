@@ -25,12 +25,14 @@ import { User } from '../types';
 import { PayslipDetail, PayslipData } from './PayslipDetail';
 import { PayslipHistory } from './PayslipHistory';
 import { payslipService, PayslipRequest } from '../services/payslipService';
+import { useUser } from '../context/UserContext';
 
 interface PayslipApprovalsProps {
   user: User;
 }
 
-export function PayslipApprovals({ user }: PayslipApprovalsProps) {
+export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
+  const { user } = useUser();
   const [pendingRequests, setPendingRequests] = useState<PayslipRequest[]>([]);
   const [history, setHistory] = useState<PayslipRequest[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -83,7 +85,7 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
       if (request) {
         const updatedRequest: PayslipRequest = {
           ...request,
-          status: 'Approved',
+          status: 'approved',
           approvedAt: new Date().toLocaleDateString()
         };
         setPendingRequests(prev => prev.filter(r => r.id !== id));
@@ -323,7 +325,7 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                         onClick={() => handleViewDetails(request)}
                       >
                         <div className="relative">
-                          <img src={request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" />
+                          <img src={request.employeeId === user?.id ? user.avatar : request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" />
                           <div className="absolute inset-0 bg-blue-500/20 rounded-full opacity-0 group-hover/emp:opacity-100 transition-opacity flex items-center justify-center">
                             {loadingDetails ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Eye className="w-4 h-4 text-white" />}
                           </div>
@@ -366,7 +368,14 @@ export function PayslipApprovals({ user }: PayslipApprovalsProps) {
                             >
                               <CheckCircle2 className="w-4 h-4" />
                             </button>
-                            <button className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors" title="Reject">
+                            <button 
+                              onClick={async () => {
+                                const success = await payslipService.rejectPayslip(request.id);
+                                if (success) fetchData();
+                              }}
+                              className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors" 
+                              title="Reject"
+                            >
                               <XCircle className="w-4 h-4" />
                             </button>
                           </>
@@ -401,6 +410,7 @@ function EmployeeHistoryView({ employeeId, employeeName, onBack, onSelect }: {
   onBack: () => void,
   onSelect: (payslip: PayslipData) => void
 }) {
+  const { user } = useUser();
   const [history, setHistory] = useState<PayslipData[]>([]);
   const [loading, setLoading] = useState(true);
 

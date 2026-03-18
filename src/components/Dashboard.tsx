@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { FileText, ArrowRight, Bell, Calendar as CalendarIcon, File, TrendingUp, CreditCard, Newspaper, Gift, MessageSquare, Users, CheckSquare, ClipboardList, Info, AlertCircle, Loader2 } from 'lucide-react';
 import { User } from '../types';
@@ -6,6 +6,8 @@ import { NewsModal, NotificationsModal, NewsItem, NotificationItem } from './Das
 import { supabase } from '../lib/supabaseClient';
 import { payslipService } from '../services/payslipService';
 import { timeOffService } from '../services/timeOffService';
+import { fetchGoogleCalendarEvents } from '../services/googleCalendarService';
+import { formatDate } from '../lib/utils';
 
 const staffQuickActions = [
   { id: 'request-time-off', label: 'Request Time Off', icon: CalendarIcon, iconBg: 'bg-indigo-500/20', iconColor: 'text-indigo-400' },
@@ -24,22 +26,26 @@ const managerQuickActions = [
 
 interface DashboardProps {
   user: User;
+  notifications: NotificationItem[];
   onAction?: (tab: string) => void;
 }
 
-export function Dashboard({ user, onAction }: DashboardProps) {
+export function Dashboard({ user, notifications, onAction }: DashboardProps) {
   const isManager = user.role === 'manager';
-  const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const today = formatDate(new Date());
   const [showAllNews, setShowAllNews] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'personal' | 'company'>('all');
   const [expandedNewsId, setExpandedNewsId] = useState<string | null>(null);
   
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [announcements, setAnnouncements] = useState<NewsItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
-  const [teamStatus, setTeamStatus] = useState({ onsite: 0, remote: 0, onLeave: 0 });
+  const [teamStatus, setTeamStatus] = useState({ onsite: 0, pendingTasks: 0, onLeave: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const hasFetchedRef = useRef(false);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -55,147 +61,189 @@ export function Dashboard({ user, onAction }: DashboardProps) {
   }, []);
 
   useEffect(() => {
-    fetchDashboardData();
+    if (!hasFetchedRef.current) {
+      fetchDashboardData();
+      hasFetchedRef.current = true;
+    }
   }, [user.id, isManager]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const newNotifications: NotificationItem[] = [];
+      const promises: Promise<any>[] = [];
 
-      // 1. Fetch Notifications from 'notifications' table
-      const { data: notificationsData } = await supabase
-        .from('notifications')
-        .select('*')
-        .or(`recipient_id.eq.${user.id},recipient_id.is.null`)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (notificationsData) {
-        notificationsData.forEach((item: any) => {
-          let icon = Info;
-          let iconBg = 'bg-slate-500/20';
-          let iconColor = 'text-slate-400';
-
-          switch (item.category) {
-            case 'task':
-              icon = CheckSquare;
-              iconBg = 'bg-teal-500/20';
-              iconColor = 'text-teal-400';
-              break;
-            case 'payslip':
-              icon = FileText;
-              iconBg = 'bg-blue-500/20';
-              iconColor = 'text-blue-400';
-              break;
-            case 'time_off':
-              icon = CalendarIcon;
-              iconBg = 'bg-indigo-500/20';
-              iconColor = 'text-indigo-400';
-              break;
-            case 'system':
-              icon = Bell;
-              iconBg = 'bg-rose-500/20';
-              iconColor = 'text-rose-400';
-              break;
-            default:
-              break;
-          }
-
-          newNotifications.push({
-            id: item.id,
-            icon: icon,
-            iconBg: iconBg,
-            iconColor: iconColor,
-            title: item.title,
-            desc: item.content,
-            time: new Date(item.created_at).toLocaleDateString(),
-            category: item.category as any,
-            recipient_id: item.recipient_id
-          });
-        });
-      }
-
-      setNotifications(newNotifications);
-
-      // 3. Manager specific notifications (Team Status only)
-      if (isManager) {
-        // Team Status (Onsite/Remote/On Leave)
-        // This is an approximation based on today's data
-        const todayStr = new Date().toISOString().split('T')[0];
-        
-        // Count On Leave
-        const { count: onLeaveCount } = await supabase
-          .from('time_off_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'Approved')
-          .lte('start_date', todayStr)
-          .gte('end_date', todayStr);
-
-        // Count Present (Onsite)
-        const { count: presentCount } = await supabase
-          .from('attendance')
-          .select('*', { count: 'exact', head: true })
-          .eq('date', todayStr)
-          .in('status', ['Present', 'Late']);
-
-        setTeamStatus({
-          onsite: presentCount || 0,
-          remote: 0, // We don't have remote tracking yet
-          onLeave: onLeaveCount || 0
-        });
-      }
-
-      // 4. Fetch Company News ONLY from 'company_news' (Fetch 10 items for "See all")
-      const { data: newsData } = await supabase
+      // 1. Fetch Company News
+      const newsPromise = Promise.resolve(supabase
         .from('company_news')
         .select('*')
         .order('publish_date', { ascending: false })
-        .limit(10);
+        .limit(10));
+      promises.push(newsPromise);
 
+      // 2. Fetch Upcoming Events
+      const eventsPromise = Promise.resolve(supabase
+        .from('events')
+        .select('*')
+        .gte('event_date', new Date().toISOString().split('T')[0]) // Only future or today's events
+        .order('event_date', { ascending: true })
+        .limit(10));
+      promises.push(eventsPromise);
+
+      // 3. Fetch Google Calendar Events
+      const googleEventsPromise = fetchGoogleCalendarEvents();
+      promises.push(googleEventsPromise);
+
+      // 4. Fetch Personal Leave Requests
+      const leavePromise = Promise.resolve(supabase
+        .from('time_off_requests')
+        .select('id, start_date, end_date, type')
+        .eq('employee_id', user.id)
+        .eq('status', 'Approved')
+        .gte('end_date', new Date().toISOString().split('T')[0]));
+      promises.push(leavePromise);
+
+      // 5. Fetch Task Deadlines
+      const tasksPromise = Promise.resolve(supabase
+        .from('tasks')
+        .select('id, title, deadline')
+        .eq('assignee_id', user.id)
+        .neq('status', 'Done')
+        .gte('deadline', new Date().toISOString().split('T')[0]));
+      promises.push(tasksPromise);
+
+      // 6. Manager specific data (Team Status)
+      let teamStatusPromise = Promise.resolve(null);
+      if (isManager) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        teamStatusPromise = Promise.all([
+          supabase
+            .from('time_off_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'Approved')
+            .lte('start_date', todayStr)
+            .gte('end_date', todayStr),
+          supabase
+            .from('attendance')
+            .select('*', { count: 'exact', head: true })
+            .eq('date', todayStr)
+            .in('status', ['Present', 'Late']),
+          supabase
+            .from('tasks')
+            .select('*', { count: 'exact', head: true })
+            .in('status', ['Todo', 'In Progress', 'Review'])
+            .neq('assignee_id', user.id)
+        ]).then(([onLeaveRes, presentRes, pendingTasksRes]) => ({
+          onLeave: onLeaveRes.count || 0,
+          onsite: presentRes.count || 0,
+          pendingTasks: pendingTasksRes.count || 0
+        })) as any;
+      }
+      promises.push(teamStatusPromise);
+
+      const [newsRes, eventsRes, googleEventsData, leaveRes, tasksRes, teamStatusData] = await Promise.all(promises);
+
+      // Process News
+      const newsData = newsRes.data;
       const combinedNews: NewsItem[] = [];
-
       if (newsData) {
         newsData.forEach((item: any) => {
-          // Handle both 'content' (new schema) and 'description' (old schema)
           const content = item.content || item.description || '';
-          
           combinedNews.push({
             id: `news-${item.id}`,
             title: item.title,
             desc: content, 
-            date: new Date(item.publish_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            date: formatDate(item.publish_date),
             type: item.type || 'News',
             file: item.file_url ? 'Attachment' : undefined
           });
         });
       }
-
       setAnnouncements(combinedNews);
 
-      // 5. Fetch Upcoming Events
-      const { data: eventsData } = await supabase
-        .from('events')
-        .select('*')
-        .gte('event_date', new Date().toISOString().split('T')[0]) // Only future or today's events
-        .order('event_date', { ascending: true })
-        .limit(3);
+      // Process Events
+      const eventsData = eventsRes.data || [];
+      const allEvents: any[] = [...eventsData.map((event: any) => ({
+        id: event.id,
+        title: event.title,
+        date: new Date(event.event_date),
+        time: event.start_time ? event.start_time.slice(0, 5) : 'All Day',
+        location: event.location,
+        type: 'company'
+      }))];
 
-      if (eventsData) {
-        const formattedEvents = eventsData.map((event: any) => ({
-          id: event.id,
-          title: event.title,
-          date: new Date(event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          time: event.start_time ? event.start_time.slice(0, 5) : 'All Day', // Extract HH:MM
-          location: event.location
-        }));
-        setUpcomingEvents(formattedEvents);
-      } else {
-        setUpcomingEvents([]);
+      if (googleEventsData) {
+        googleEventsData.forEach((event: any) => {
+          allEvents.push({
+            id: `google-${event.id}`,
+            title: event.title,
+            date: new Date(event.start),
+            endDate: new Date(event.end),
+            time: event.start.getHours() === 0 && event.start.getMinutes() === 0 ? 'All Day' : formatDate(event.start, 'HH:mm'),
+            location: event.location,
+            type: 'company'
+          });
+        });
       }
 
-    } catch (error) {
+      if (leaveRes.data) {
+        leaveRes.data.forEach((leave: any) => {
+          allEvents.push({
+            id: `leave-${leave.id}`,
+            title: `${leave.type} Leave`,
+            date: new Date(leave.start_date),
+            endDate: new Date(leave.end_date),
+            time: 'All Day',
+            type: 'personal'
+          });
+        });
+      }
+
+      if (tasksRes.data) {
+        tasksRes.data.forEach((task: any) => {
+          allEvents.push({
+            id: `task-${task.id}`,
+            title: `Deadline: ${task.title}`,
+            date: new Date(task.deadline),
+            time: 'All Day',
+            type: 'deadline'
+          });
+        });
+      }
+
+      // Filter for next 7 days and sort
+      const now = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(now.getDate() + 7);
+
+      const filteredEvents = allEvents.filter(e => {
+        const start = new Date(e.date);
+        const end = e.endDate ? new Date(e.endDate) : new Date(e.date);
+        const isNotCancelled = !e.title.toLowerCase().includes('cancel');
+        return end >= now && start <= nextWeek && isNotCancelled;
+      });
+
+      filteredEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+      
+      const formattedEvents = filteredEvents.map(event => ({
+        ...event,
+        date: formatDate(event.date, 'dd MMM')
+      }));
+
+      setUpcomingEvents(formattedEvents);
+
+      // Process Team Status
+      if (teamStatusData) {
+        setTeamStatus(teamStatusData);
+      }
+
+    } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
+      if (error.message === 'Failed to fetch') {
+        setError('Connection error: Please check your Supabase configuration.');
+      } else {
+        setError('Failed to load dashboard data.');
+      }
     } finally {
       setLoading(false);
     }
@@ -218,6 +266,27 @@ export function Dashboard({ user, onAction }: DashboardProps) {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8 text-red-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Dashboard Error</h2>
+        <p className="text-slate-400 max-w-md mb-6">{error}</p>
+        <button 
+          onClick={() => {
+            setError(null);
+            fetchDashboardData();
+          }}
+          className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <NewsModal isOpen={showAllNews} onClose={() => setShowAllNews(false)} news={announcements} />
@@ -231,6 +300,15 @@ export function Dashboard({ user, onAction }: DashboardProps) {
             <p className="text-slate-400 text-sm md:text-base leading-none">Welcome back to DKG</p>
           </div>
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAllNotifications(true)}
+              className="hidden lg:flex relative p-2 rounded-full hover:bg-white/5 text-slate-400 hover:text-white transition-colors mr-2"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#0F1115]" />
+              )}
+            </button>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Today:</span>
             <span className="text-sm font-semibold text-white bg-white/5 px-4 py-1.5 rounded-full border border-white/10 shadow-sm">
               {today}
@@ -398,14 +476,17 @@ export function Dashboard({ user, onAction }: DashboardProps) {
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
+                  <div className="flex items-start justify-between p-4 rounded-2xl bg-white/5 border border-white/5">
                     <div className="flex flex-col items-center">
                       <span className="text-2xl font-black text-white">{teamStatus.onsite}</span>
                       <span className="text-xs text-slate-400 font-bold uppercase">Onsite</span>
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-2xl font-black text-white">{teamStatus.remote}</span>
-                      <span className="text-xs text-slate-400 font-bold uppercase">Remote</span>
+                    <div 
+                      className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => onAction && onAction('team-status')}
+                    >
+                      <span className="text-2xl font-black text-white">{teamStatus.pendingTasks}</span>
+                      <span className="text-xs text-slate-400 font-bold uppercase text-center">Pending<br/>Tasks</span>
                     </div>
                     <div className="flex flex-col items-center">
                       <span className="text-2xl font-black text-white">{teamStatus.onLeave}</span>
