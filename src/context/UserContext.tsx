@@ -22,15 +22,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error("Session check error:", error);
-        setUser(null);
+        // If the refresh token is invalid, clear the session to prevent loops
+        if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_refresh_token')) {
+          console.warn("Invalid session detected, signing out...");
+          supabase.auth.signOut();
+        }
         setIsLoading(false);
         return;
       }
 
       if (session?.user) {
-        if (!user && !fetchingProfileRef.current) {
-          fetchProfile(session.user.id, session.user.email || '');
-        }
+        fetchProfile(session.user.id, session.user.email || '');
       } else {
         setIsLoading(false);
       }
@@ -45,28 +47,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setIsLoading(false);
           fetchingProfileRef.current = false;
+          // Clear any cached data
+          localStorage.removeItem('supabase.auth.token');
           return;
         }
 
         if (session?.user) {
-          // Only fetch if we don't have a user OR if the user ID has changed
-          // AND we aren't currently fetching
-          if ((!user || user.id !== session.user.id) && !fetchingProfileRef.current) {
-             fetchProfile(session.user.id, session.user.email || '');
+          fetchProfile(session.user.id, session.user.email || '');
+        } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+          // If we get a token refresh event but no user, it might be an error state
+          if (!session) {
+            setUser(null);
+            setIsLoading(false);
           }
         } else {
-          // No session user, but not explicitly signed out (e.g. initial load state)
-          if (!isLoading && user) {
-             // If we were logged in but now aren't, clear state
-             setUser(null);
-          }
-           setIsLoading(false);
+          setUser(null);
+          setIsLoading(false);
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, [user]); // Add user dependency to correctly check current state
+  }, []); // Run only once on mount
 
   const fetchProfile = async (userId: string, email: string) => {
     if (fetchingProfileRef.current) return;
@@ -112,15 +114,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
           ? permissionsList.map((rp: any) => rp.features?.feature_key).filter(Boolean)
           : [];
 
-        // Check local storage for cached avatar
-        let avatarUrl = data.avatar_url || 'https://picsum.photos/seed/user/100/100';
+        // Prioritize database value as source of truth
+        const avatarUrl = data.avatar_url || 'https://picsum.photos/seed/user/100/100';
+        
+        // Update cache with fresh database value to ensure consistency
         try {
-          const cachedAvatar = localStorage.getItem(`avatar_${userId}`);
-          if (cachedAvatar) {
-            avatarUrl = cachedAvatar;
-          }
+          localStorage.setItem(`avatar_${userId}`, avatarUrl);
         } catch (e) {
-          console.warn('Failed to read avatar from localStorage:', e);
+          console.warn('Failed to update avatar cache in localStorage:', e);
         }
 
         setUser({

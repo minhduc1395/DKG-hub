@@ -87,6 +87,8 @@ export function Tasks({ user }: TasksProps) {
   const [showCompleted, setShowCompleted] = useState(false);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [newTask, setNewTask] = useState({
     title: '',
@@ -178,13 +180,11 @@ export function Tasks({ user }: TasksProps) {
       fetchActivities(taskId);
     } catch (err) {
       console.error('Error posting activity:', err);
-      alert('Failed to save activity. Please check your connection or database setup.');
+      setError('Failed to save activity. Please check your connection or database setup.');
     }
   };
 
   const handleCompleteTask = async (taskId: string) => {
-    if (!confirm('Are you sure you want to mark this task as complete?')) return;
-
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Done' } : t));
     setOriginalTasks(prev => {
@@ -213,7 +213,7 @@ export function Tasks({ user }: TasksProps) {
 
     } catch (err) {
       console.error('Error completing task:', err);
-      alert('Failed to complete task');
+      setError('Failed to complete task');
       // Revert optimistic update
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'In Progress' } : t));
     }
@@ -370,7 +370,7 @@ export function Tasks({ user }: TasksProps) {
       return;
     }
 
-    const assignee = employees.find(emp => emp.id === newTask.assigneeId) || { name: user.name };
+    const assignee = employees.find(emp => emp.id === newTask.assigneeId) || { name: user.name, avatar: user.avatar };
     const tempId = `temp-${Date.now()}`;
     
     // Optimistic UI
@@ -380,8 +380,11 @@ export function Tasks({ user }: TasksProps) {
       description: newTask.description,
       assigneeId: newTask.assigneeId,
       assigneeName: assignee.name,
+      assigneeAvatar: (assignee as any).avatar,
+      assignees: [{ id: newTask.assigneeId, name: assignee.name, avatar: (assignee as any).avatar }],
       assignerId: user.id,
       assignerName: user.name,
+      assignerAvatar: user.avatar,
       status: 'Todo',
       priority: newTask.priority,
       deadline: newTask.deadline,
@@ -632,13 +635,11 @@ export function Tasks({ user }: TasksProps) {
       fetchActivities(taskId);
     } catch (err) {
       console.error('Error editing activity:', err);
-      alert('Failed to edit activity');
+      setError('Failed to edit activity');
     }
   };
 
   const handleDeleteActivity = async (activityId: string, taskId: string) => {
-    if (!confirm('Are you sure you want to delete this update?')) return;
-
     try {
       const { error } = await supabase
         .from('task_activities')
@@ -658,7 +659,7 @@ export function Tasks({ user }: TasksProps) {
       fetchActivities(taskId);
     } catch (err) {
       console.error('Error deleting activity:', err);
-      alert('Failed to delete activity');
+      setError('Failed to delete activity');
     }
   };
 
@@ -671,13 +672,17 @@ export function Tasks({ user }: TasksProps) {
 
     // Prevent removing self if not the task creator
     if (isAssigned && userId === user.id && task.assignerId !== user.id) {
-      alert("You cannot remove yourself from a task you did not create.");
+      setError("You cannot remove yourself from a task you did not create.");
       return;
     }
 
     const newAssignees = isAssigned 
       ? currentAssignees.filter(a => a.id !== userId)
-      : [...currentAssignees, { id: userId, name: employees.find(e => e.id === userId)?.name || 'Unknown' }];
+      : [...currentAssignees, { 
+          id: userId, 
+          name: employees.find(e => e.id === userId)?.name || 'Unknown',
+          avatar: employees.find(e => e.id === userId)?.avatar
+        }];
 
     // Optimistic Update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignees: newAssignees } : t));
@@ -730,16 +735,21 @@ export function Tasks({ user }: TasksProps) {
       console.error('Error toggling assignee:', err);
       // Revert
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignees: currentAssignees } : t));
-      alert('Failed to update assignees');
+      setError('Failed to update assignees');
     }
   };
 
   const updateTaskAssignee = async (id: string, newAssigneeId: string) => {
-    const newAssignee = employees.find(emp => emp.id === newAssigneeId) || { name: 'Unknown' };
+    const newAssignee = employees.find(emp => emp.id === newAssigneeId) || { name: 'Unknown', avatar: undefined };
     
     // Optimistic UI
     const previousTasks = [...tasks];
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, assigneeId: newAssigneeId, assigneeName: newAssignee.name } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { 
+      ...t, 
+      assigneeId: newAssigneeId, 
+      assigneeName: newAssignee.name,
+      assigneeAvatar: newAssignee.avatar
+    } : t));
 
     try {
       const { error } = await supabase
@@ -766,10 +776,29 @@ export function Tasks({ user }: TasksProps) {
   const completedTasks = filteredTasks.filter(t => t.status === 'Done');
 
   const handleDeleteTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // Check permissions: Only creator or manager/privileged can delete
+    const userRole = user.role?.toLowerCase() || '';
+    const userPosition = user.position?.toLowerCase() || '';
+    const isPrivileged = ['ceo', 'manager', 'accountant'].includes(userRole) || 
+                         ['ceo', 'manager', 'accountant', 'kế toán'].includes(userPosition);
+    
+    if (!isPrivileged && task.assignerId !== user.id) {
+      setError("You do not have permission to delete this task. Only the creator or a manager can delete tasks.");
+      setTaskToDelete(null);
+      return;
+    }
+
     console.log('handleDeleteTask called for:', taskId);
-    if (!confirm('Are you sure you want to delete this task?')) return;
+    setIsDeleting(true);
 
     try {
+      // Delete related records first to avoid foreign key violations if not cascading
+      await supabase.from('task_activities').delete().eq('task_id', taskId);
+      await supabase.from('task_assignees').delete().eq('task_id', taskId);
+
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -792,9 +821,12 @@ export function Tasks({ user }: TasksProps) {
         return next;
       });
 
+      setTaskToDelete(null);
     } catch (err) {
       console.error('Error deleting task:', err);
-      alert('Failed to delete task.');
+      setError('Failed to delete task. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1534,18 +1566,22 @@ export function Tasks({ user }: TasksProps) {
                     )}
                   </button>
                   
-                  <button 
-                    onClick={(e) => {
-                      console.log('Delete button clicked for:', task.id);
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleDeleteTask(task.id);
-                    }}
-                    className="p-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
-                    title="Delete Task"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  {((['ceo', 'manager', 'accountant'].includes(user.role?.toLowerCase() || '') || 
+                     ['ceo', 'manager', 'accountant', 'kế toán'].includes(user.position?.toLowerCase() || '')) || 
+                     task.assignerId === user.id) && (
+                    <button 
+                      onClick={(e) => {
+                        console.log('Delete button clicked for:', task.id);
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setTaskToDelete(task.id);
+                      }}
+                      className="p-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
+                      title="Delete Task"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               {/* Expanded Details & Activity */}
               <AnimatePresence>
@@ -1586,8 +1622,12 @@ export function Tasks({ user }: TasksProps) {
                             <div key={activity.id} className="bg-white/5 rounded-xl p-4 border border-white/5 group/activity">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-400 shrink-0">
-                                    {(activity.user_name || 'U').charAt(0)}
+                                  <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-400 shrink-0 overflow-hidden">
+                                    {activity.user_avatar ? (
+                                      <img src={activity.user_avatar} alt={activity.user_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      (activity.user_name || 'U').charAt(0)
+                                    )}
                                   </div>
                                   <span className="text-xs font-bold text-white">{activity.user_name || 'Unknown'}</span>
                                   <span className="text-[10px] text-slate-500">{new Date(activity.created_at).toLocaleString()}</span>
@@ -2128,9 +2168,18 @@ export function Tasks({ user }: TasksProps) {
                                 
                                 {/* Assignee */}
                                 <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                   <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[9px] text-white font-bold">
-                                      {(task.assigneeId === user.id ? task.assignerName : task.assigneeName).charAt(0)}
-                                   </div>
+                                   {task.assigneeAvatar ? (
+                                     <img 
+                                       src={task.assigneeAvatar} 
+                                       alt={task.assigneeName}
+                                       className="w-5 h-5 rounded-full object-cover border border-white/10"
+                                       referrerPolicy="no-referrer"
+                                     />
+                                   ) : (
+                                     <div className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[9px] text-white font-bold">
+                                        {(task.assigneeId === user.id ? task.assignerName : task.assigneeName).charAt(0)}
+                                     </div>
+                                   )}
                                    <span>{task.assigneeId === user.id ? 'Me' : employees.find(e => e.id === task.assigneeId)?.name || 'Unknown'}</span>
                                 </div>
                              </div>
@@ -2299,18 +2348,30 @@ export function Tasks({ user }: TasksProps) {
                         {/* Column 6: Assignee/Assigner */}
                         <div className="hidden lg:flex items-center justify-start gap-3 min-w-0 col-span-1 pl-10" onClick={(e) => e.stopPropagation()}>
                           <div className="flex -space-x-3 overflow-hidden">
-                            {(task.assignees || [{ id: task.assigneeId, name: task.assigneeName }]).map((assignee, idx) => (
+                            {(task.assignees || [{ id: task.assigneeId, name: task.assigneeName, avatar: task.assigneeAvatar }]).map((assignee, idx) => (
                               <div 
                                 key={assignee.id}
                                 className={cn(
-                                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white shadow-lg shrink-0 border-2 border-[#0F1115]",
-                                  idx === 0 ? "bg-gradient-to-br from-blue-500 to-indigo-600 z-30" : 
-                                  idx === 1 ? "bg-gradient-to-br from-purple-500 to-pink-600 z-20" : 
-                                  "bg-slate-700 z-10"
+                                  "w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white shadow-lg shrink-0 border-2 border-[#0F1115] overflow-hidden",
+                                  !assignee.avatar && (
+                                    idx === 0 ? "bg-gradient-to-br from-blue-500 to-indigo-600 z-30" : 
+                                    idx === 1 ? "bg-gradient-to-br from-purple-500 to-pink-600 z-20" : 
+                                    "bg-slate-700 z-10"
+                                  )
                                 )}
+                                style={{ zIndex: 30 - idx }}
                                 title={assignee.name}
                               >
-                                {assignee.name.charAt(0)}
+                                {assignee.avatar ? (
+                                  <img 
+                                    src={assignee.avatar} 
+                                    alt={assignee.name}
+                                    className="w-full h-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  assignee.name.charAt(0)
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2465,19 +2526,6 @@ export function Tasks({ user }: TasksProps) {
                             ) : (
                               <CheckSquare className="w-5 h-5" />
                             )}
-                          </button>
-                          
-                          <button 
-                            onClick={(e) => {
-                              console.log('Delete button clicked for:', task.id);
-                              e.stopPropagation();
-                              e.preventDefault();
-                              handleDeleteTask(task.id);
-                            }}
-                            className="p-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all hover:scale-110 active:scale-90"
-                            title="Delete Task"
-                          >
-                            <X className="w-5 h-5" />
                           </button>
                         </div>
                         
@@ -2881,6 +2929,58 @@ export function Tasks({ user }: TasksProps) {
               </form>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {taskToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTaskToDelete(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#0F1115] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-6 h-6 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Delete Task</h3>
+                    <p className="text-sm text-slate-400">Are you sure you want to delete this task? This action cannot be undone.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setTaskToDelete(null)}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTask(taskToDelete)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

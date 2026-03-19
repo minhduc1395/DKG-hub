@@ -29,6 +29,7 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar, userId }:
   const [linkInput, setLinkInput] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,6 +57,7 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar, userId }:
 
   const handleSave = async () => {
     let finalUrl = previewUrl;
+    setUploadError(null);
 
     if (activeTab === 'upload' && selectedFile) {
       setIsUploading(true);
@@ -64,77 +66,90 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar, userId }:
         const fileName = `${userId}-${Date.now()}.${fileExt}`;
         const filePath = `${userId}/${fileName}`;
 
-        // Try 'avatars' first, then 'avatar' as fallback
-        let bucketName = 'avatars';
-        let { error: uploadError } = await supabase.storage
-          .from(bucketName)
-          .upload(filePath, selectedFile, {
-            upsert: true,
-            contentType: selectedFile.type
-          });
+        // Try 'avatar' first, then 'avatars', then 'documents' as a last resort
+        const buckets = ['avatar', 'avatars', 'documents'];
+        let uploadSuccess = false;
+        let lastError = null;
 
-        if (uploadError) {
-          bucketName = 'avatar';
-          const { error: retryError } = await supabase.storage
+        for (const bucketName of buckets) {
+          console.log(`Attempting upload to bucket: ${bucketName}`);
+          const { error: uploadErr } = await supabase.storage
             .from(bucketName)
             .upload(filePath, selectedFile, {
               upsert: true,
               contentType: selectedFile.type
             });
-          
-          if (retryError) {
-            console.error('Upload failed for both buckets:', uploadError, retryError);
-            // If both fail, we'll use the base64 preview as a last resort
-            // but warn the user it might be too large for some DB fields
-            finalUrl = previewUrl;
-          } else {
+
+          if (!uploadErr) {
             const { data: { publicUrl } } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath);
             finalUrl = publicUrl;
+            uploadSuccess = true;
+            console.log(`Upload successful to bucket: ${bucketName}`);
+            break;
+          } else {
+            console.warn(`Upload to ${bucketName} failed:`, uploadErr.message);
+            lastError = uploadErr;
           }
-        } else {
-          const { data: { publicUrl } } = supabase.storage
-            .from(bucketName)
-            .getPublicUrl(filePath);
-          finalUrl = publicUrl;
         }
-      } catch (error) {
+
+        if (!uploadSuccess) {
+          console.error('Upload failed for all buckets:', lastError);
+          setUploadError(
+            lastError?.message === 'Bucket not found' 
+              ? "Storage bucket not found. Please create a bucket named 'avatar' in Supabase." 
+              : lastError?.message || "Failed to upload image."
+          );
+          setIsUploading(false);
+          return; // Stop if upload failed
+        }
+      } catch (error: any) {
         console.error('Error uploading avatar:', error);
-        // Fallback to previewUrl (base64) if upload fails
-        finalUrl = previewUrl;
+        setUploadError(error.message || "An unexpected error occurred during upload.");
+        setIsUploading(false);
+        return;
       } finally {
         setIsUploading(false);
       }
     }
 
-    // Save to database immediately for better UX
-    try {
-      // Use upsert instead of update to handle cases where profile might not exist yet
-      const { error: dbError } = await supabase
-        .from('profiles')
-        .upsert({ 
-          id: userId,
-          avatar_url: finalUrl,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-      
-      if (dbError) {
-        console.error('Error updating profile avatar in database:', dbError);
-        // If it's an RLS error, we should inform the user more clearly in console
-        if (dbError.message.includes('row-level security')) {
-          console.warn('RLS Policy Error: Please ensure the "profiles" table has an UPDATE/INSERT policy for authenticated users.');
+    // Save to database immediately for persistence
+    if (finalUrl && finalUrl !== currentAvatar) {
+      try {
+        console.log('Updating profile avatar in database...', finalUrl);
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({ 
+            avatar_url: finalUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+        
+        if (dbError) {
+          console.error('Error updating profile avatar in database:', dbError);
+          // Fallback to upsert if update failed (might happen if profile record doesn't exist yet)
+          const { error: upsertError } = await supabase
+            .from('profiles')
+            .upsert({ 
+              id: userId,
+              avatar_url: finalUrl,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+          
+          if (upsertError) {
+            console.error('Upsert also failed:', upsertError);
+          }
         }
-      } else {
-        alert('Avatar updated successfully!');
+      } catch (error) {
+        console.error('Unexpected error updating profile avatar:', error);
       }
-    } catch (error) {
-      console.error('Unexpected error updating profile avatar:', error);
     }
 
-    // Save to localStorage for local persistence/cache
+    // Save to localStorage for immediate persistence across refreshes
     try {
       localStorage.setItem(`avatar_${userId}`, finalUrl);
+      console.log('Saved avatar to localStorage');
     } catch (e) {
       console.warn('Failed to save avatar to localStorage:', e);
     }
@@ -171,6 +186,16 @@ export function AvatarPicker({ isOpen, onClose, onSave, currentAvatar, userId }:
             </div>
 
             <div className="p-6 flex flex-col gap-6">
+              {/* Error Message */}
+              {uploadError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                  <Loader2 className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-red-200/70 leading-relaxed">
+                    {uploadError}
+                  </p>
+                </div>
+              )}
+
               {/* Preview */}
               <div className="flex justify-center">
                 <div className="w-32 h-32 rounded-full border-4 border-white/10 overflow-hidden bg-white/5">

@@ -72,10 +72,11 @@ export function Profile({ user, onUpdate }: ProfileProps) {
   };
 
   const handleAvatarSave = (newUrl: string) => {
-    setFormData(prev => ({ ...prev, avatar: newUrl }));
+    const updatedUser = { ...formData, avatar: newUrl };
+    setFormData(updatedUser);
     // Since AvatarPicker already updated the database, we update the global state too
     if (onUpdate) {
-      onUpdate({ ...formData, avatar: newUrl });
+      onUpdate(updatedUser);
     }
   };
 
