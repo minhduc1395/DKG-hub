@@ -28,9 +28,11 @@ interface DashboardProps {
   user: User;
   notifications: NotificationItem[];
   onAction?: (tab: string) => void;
+  onMarkAsRead: (id: string | number) => void;
+  onMarkAllAsRead: () => void;
 }
 
-export function Dashboard({ user, notifications, onAction }: DashboardProps) {
+export function Dashboard({ user, notifications, onAction, onMarkAsRead, onMarkAllAsRead }: DashboardProps) {
   const isManager = user.role === 'manager';
   const today = formatDate(new Date());
   const [showAllNews, setShowAllNews] = useState(false);
@@ -290,7 +292,13 @@ export function Dashboard({ user, notifications, onAction }: DashboardProps) {
   return (
     <>
       <NewsModal isOpen={showAllNews} onClose={() => setShowAllNews(false)} news={announcements} />
-      <NotificationsModal isOpen={showAllNotifications} onClose={() => setShowAllNotifications(false)} notifications={notifications} />
+      <NotificationsModal 
+        isOpen={showAllNotifications} 
+        onClose={() => setShowAllNotifications(false)} 
+        notifications={notifications} 
+        onMarkAsRead={onMarkAsRead}
+        onMarkAllAsRead={onMarkAllAsRead}
+      />
       
       <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full animate-in fade-in duration-500">
         {/* Header */}

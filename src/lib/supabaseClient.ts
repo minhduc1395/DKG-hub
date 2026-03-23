@@ -1,16 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Support both Vite (import.meta.env) and Node (process.env)
+const getEnv = (key: string) => {
+  if (typeof process !== 'undefined' && process.env[key]) {
+    return process.env[key];
+  }
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    return (import.meta as any).env[key];
+  }
+  return undefined;
+};
+
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('NEXT_PUBLIC_SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY') || getEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY');
+const supabaseServiceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 const isPlaceholder = (val: string | undefined) => 
   !val || val === 'YOUR_SUPABASE_URL' || val === 'YOUR_SUPABASE_ANON_KEY' || val.includes('MY_');
 
-if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseAnonKey)) {
-  console.error('Supabase configuration is missing or using placeholder values. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
+if (isPlaceholder(supabaseUrl) || (isPlaceholder(supabaseAnonKey) && isPlaceholder(supabaseServiceKey))) {
+  console.error('Supabase configuration is missing or using placeholder values. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or NEXT_PUBLIC_ equivalents) in your environment variables.');
 }
 
+// Use service key if available (for server-side operations), otherwise fallback to anon key
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co', 
-  supabaseAnonKey || 'placeholder'
+  supabaseServiceKey || supabaseAnonKey || 'placeholder'
 );

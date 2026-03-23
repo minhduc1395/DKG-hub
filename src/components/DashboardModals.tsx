@@ -135,9 +135,11 @@ interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   notifications: NotificationItem[];
+  onMarkAsRead: (id: string | number) => void;
+  onMarkAllAsRead: () => void;
 }
 
-export function NotificationsModal({ isOpen, onClose, notifications }: NotificationsModalProps) {
+export function NotificationsModal({ isOpen, onClose, notifications, onMarkAsRead, onMarkAllAsRead }: NotificationsModalProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'personal' | 'company'>('all');
 
   const filteredNotifications = notifications.filter(item => {
@@ -146,6 +148,8 @@ export function NotificationsModal({ isOpen, onClose, notifications }: Notificat
     if (activeTab === 'company') return item.recipient_id === null;
     return true;
   });
+
+  const unreadCount = filteredNotifications.filter(n => !n.is_read).length;
 
   return (
     <AnimatePresence>
@@ -179,38 +183,52 @@ export function NotificationsModal({ isOpen, onClose, notifications }: Notificat
               </button>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 px-6 py-3 border-b border-white/5 shrink-0 overflow-x-auto">
-              {(['all', 'personal', 'company'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                    activeTab === tab 
-                      ? 'bg-white/10 text-white' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                  }`}
+            {/* Filter Tabs & Mark all as read */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-white/5 shrink-0 overflow-x-auto gap-4">
+              <div className="flex items-center gap-2">
+                {(['all', 'personal', 'company'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                      activeTab === tab 
+                        ? 'bg-white/10 text-white' 
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                    }`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {unreadCount > 0 && (
+                <button 
+                  onClick={onMarkAllAsRead}
+                  className="text-[10px] font-bold text-blue-400 hover:text-blue-300 whitespace-nowrap uppercase tracking-wider"
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  Mark all as read
                 </button>
-              ))}
+              )}
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
               {filteredNotifications.map((item) => (
                 <div 
                   key={item.id} 
-                  className="flex gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors group cursor-pointer border border-transparent hover:border-white/5"
+                  onClick={() => !item.is_read && onMarkAsRead(item.id)}
+                  className={`flex gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors group cursor-pointer border border-transparent hover:border-white/5 ${!item.is_read ? 'bg-white/[0.03]' : ''}`}
                 >
                   <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${item.iconBg}`}>
                     <item.icon className={`w-5 h-5 ${item.iconColor}`} />
                   </div>
                   <div className="flex flex-col gap-1 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-white leading-tight group-hover:text-blue-300 transition-colors">{item.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-bold leading-tight group-hover:text-blue-300 transition-colors ${item.is_read ? 'text-slate-400' : 'text-white'}`}>{item.title}</p>
+                        {!item.is_read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                      </div>
                       <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">{item.time}</span>
                     </div>
-                    <p className="text-slate-400 text-xs leading-snug">{item.desc}</p>
+                    <p className={`text-xs leading-snug ${item.is_read ? 'text-slate-500' : 'text-slate-400'}`}>{item.desc}</p>
                     <div className="flex items-center gap-2 mt-1">
                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 ${
                          item.category === 'system' ? 'text-rose-400' :

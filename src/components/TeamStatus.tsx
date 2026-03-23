@@ -48,6 +48,8 @@ export function TeamStatus({ user }: TeamStatusProps) {
   const [employeePayslips, setEmployeePayslips] = useState<PayslipDetailData[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'feedback'>('overview');
   const [loading, setLoading] = useState(true);
 
@@ -59,6 +61,9 @@ export function TeamStatus({ user }: TeamStatusProps) {
     deadline: ''
   });
 
+  const [isUpdatingDaysOff, setIsUpdatingDaysOff] = useState(false);
+  const [editDaysOffValue, setEditDaysOffValue] = useState<number>(0);
+
   useEffect(() => {
     fetchData();
   }, [user.id]);
@@ -69,6 +74,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
     if (selectedEmployee) {
       fetchEmployeePayslips(selectedEmployee.id);
       setShowMorePayslips(false); // Reset when selecting a new employee
+      setEditDaysOffValue(selectedEmployee.daysOff);
     }
   }, [selectedEmployee]);
 
@@ -196,6 +202,41 @@ export function TeamStatus({ user }: TeamStatusProps) {
         };
         
         setTasks([task, ...tasks]);
+
+        // Update team performance counts
+        setTeam(prev => prev.map(emp => {
+          if (emp.id === task.assigneeId) {
+            const updatedEmployeeTasks = [data, ...(emp.tasks || [])];
+            
+            // Re-calculate counts
+            const tasksCompleted = updatedEmployeeTasks.filter(t => t.status === 'Done').length;
+            const tasksInProgress = updatedEmployeeTasks.filter(t => t.status === 'In Progress').length;
+            const tasksPending = updatedEmployeeTasks.filter(t => ['Todo', 'Review'].includes(t.status)).length;
+            const totalTasks = updatedEmployeeTasks.length;
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tasksOverdue = updatedEmployeeTasks.filter(t => {
+              if (t.status === 'Done') return false;
+              if (!t.deadline) return false;
+              const deadline = new Date(t.deadline);
+              deadline.setHours(0, 0, 0, 0);
+              return deadline < today;
+            }).length;
+
+            return {
+              ...emp,
+              tasks: updatedEmployeeTasks,
+              tasksCompleted,
+              tasksInProgress,
+              tasksPending,
+              totalTasks,
+              tasksOverdue
+            };
+          }
+          return emp;
+        }));
+
         setIsAssignTaskOpen(false);
         setNewTask({ title: '', description: '', assigneeId: '', priority: 'Medium', deadline: '' });
       }
@@ -207,14 +248,59 @@ export function TeamStatus({ user }: TeamStatusProps) {
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+    const id = taskToDelete;
+
+    // Find the task to delete to get assignee info
+    const task = tasks.find(t => t.id === id);
+    if (!task) {
+      setTaskToDelete(null);
       return;
     }
 
-    // Optimistic UI update
+    setIsDeleting(true);
+    setErrorMessage(null);
+
+    // Optimistic UI update for tasks list
     const previousTasks = [...tasks];
+    const previousTeam = [...team];
+    
     setTasks(prev => prev.filter(t => t.id !== id));
+
+    // Optimistic UI update for team performance counts
+    setTeam(prev => prev.map(emp => {
+      if (emp.id === task.assigneeId) {
+        const updatedEmployeeTasks = (emp.tasks || []).filter(t => t.id !== id);
+        
+        // Re-calculate counts
+        const tasksCompleted = updatedEmployeeTasks.filter(t => t.status === 'Done').length;
+        const tasksInProgress = updatedEmployeeTasks.filter(t => t.status === 'In Progress').length;
+        const tasksPending = updatedEmployeeTasks.filter(t => ['Todo', 'Review'].includes(t.status)).length;
+        const totalTasks = updatedEmployeeTasks.length;
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tasksOverdue = updatedEmployeeTasks.filter(t => {
+          if (t.status === 'Done') return false;
+          if (!t.deadline) return false;
+          const deadline = new Date(t.deadline);
+          deadline.setHours(0, 0, 0, 0);
+          return deadline < today;
+        }).length;
+
+        return {
+          ...emp,
+          tasks: updatedEmployeeTasks,
+          tasksCompleted,
+          tasksInProgress,
+          tasksPending,
+          totalTasks,
+          tasksOverdue
+        };
+      }
+      return emp;
+    }));
 
     try {
       // 1. Delete task assignees first
@@ -231,11 +317,15 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
       if (error) throw error;
       
+      setTaskToDelete(null);
     } catch (err: any) {
       console.error('Error deleting task:', err);
-      // Revert optimistic update
+      // Revert optimistic updates
       setTasks(previousTasks);
-      alert(`Failed to delete task: ${err.message || 'Unknown error'}`);
+      setTeam(previousTeam);
+      setErrorMessage(`Failed to delete task: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -276,6 +366,52 @@ export function TeamStatus({ user }: TeamStatusProps) {
       }
       return t;
     }));
+
+    // Update team state to reflect deadline change (might affect overdue count)
+    if (updates.deadline) {
+      setTeam(prev => prev.map(emp => {
+        if (emp.id === task.assigneeId) {
+          const updatedEmployeeTasks = (emp.tasks || []).map(t => 
+            t.id === taskId ? { ...t, deadline: updates.deadline } : t
+          );
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tasksOverdue = updatedEmployeeTasks.filter(t => {
+            if (t.status === 'Done') return false;
+            if (!t.deadline) return false;
+            const deadline = new Date(t.deadline);
+            deadline.setHours(0, 0, 0, 0);
+            return deadline < today;
+          }).length;
+
+          return {
+            ...emp,
+            tasks: updatedEmployeeTasks,
+            tasksOverdue
+          };
+        }
+        return emp;
+      }));
+    }
+  };
+
+  const handleUpdateDaysOff = async () => {
+    if (!selectedEmployee) return;
+    setIsUpdatingDaysOff(true);
+    try {
+      await teamService.updateDaysOff(selectedEmployee.id, editDaysOffValue);
+      // Update local state
+      setTeam(prev => prev.map(emp => 
+        emp.id === selectedEmployee.id ? { ...emp, daysOff: editDaysOffValue } : emp
+      ));
+      setSelectedEmployee(prev => prev ? { ...prev, daysOff: editDaysOffValue } : null);
+    } catch (error) {
+      console.error("Error updating days off:", error);
+      alert("Failed to update days off. Please try again.");
+    } finally {
+      setIsUpdatingDaysOff(false);
+    }
   };
 
   const filteredTeam = team.filter(t => 
@@ -429,6 +565,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                       <th className="px-6 py-4 text-center">Overdue</th>
                       <th className="px-6 py-4 text-center">Late Days</th>
                       <th className="px-6 py-4 text-center">OT Hours</th>
+                      <th className="px-6 py-4 text-center">Days Off</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -481,6 +618,11 @@ export function TeamStatus({ user }: TeamStatusProps) {
                             {emp.otHours}h
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={cn("font-bold", emp.daysOff >= 12 ? "text-rose-400" : "text-blue-400")}>
+                            {emp.daysOff}
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <button 
@@ -531,7 +673,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                         <h3 className="text-xl font-bold text-white">{task.title}</h3>
                      </div>
                      <button 
-                        onClick={() => handleDeleteTask(task.id)}
+                        onClick={() => setTaskToDelete(task.id)}
                         className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
                         title="Delete Task"
                      >
@@ -761,6 +903,59 @@ export function TeamStatus({ user }: TeamStatusProps) {
         )}
       </AnimatePresence>
 
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {taskToDelete && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setTaskToDelete(null)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-[#0F1115] border border-white/10 rounded-[2rem] shadow-2xl z-[111] overflow-hidden"
+            >
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-rose-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Delete Task?</h3>
+                <p className="text-slate-400 mb-8">This action cannot be undone. All task history and activities will be permanently removed.</p>
+                
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setTaskToDelete(null)}
+                    disabled={isDeleting}
+                    className="flex-1 py-3 rounded-xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleDeleteTask}
+                    disabled={isDeleting}
+                    className="flex-1 py-3 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 transition-all shadow-[0_0_20px_rgba(244,63,94,0.3)] flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete Task"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Employee Details Modal */}
       <AnimatePresence>
         {selectedEmployee && (
@@ -840,14 +1035,30 @@ export function TeamStatus({ user }: TeamStatusProps) {
                       </div>
                       <Clock className={cn("w-8 h-8", selectedEmployee.otHours > 0 ? "text-blue-400" : "text-slate-600")} />
                     </div>
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                      <div>
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group/daysoff">
+                      <div className="flex-1">
                         <p className="text-xs font-bold text-slate-500 uppercase">Days Off</p>
-                        <p className="text-xl font-black text-white mt-1">
-                          {selectedEmployee.daysOff} <span className="text-sm text-slate-500 font-medium">/ 14</span>
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input 
+                            type="number"
+                            value={editDaysOffValue}
+                            onChange={(e) => setEditDaysOffValue(Number(e.target.value))}
+                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-lg font-black text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                          />
+                          <span className="text-sm text-slate-500 font-medium">/ 14</span>
+                          {editDaysOffValue !== selectedEmployee.daysOff && (
+                            <button 
+                              onClick={handleUpdateDaysOff}
+                              disabled={isUpdatingDaysOff}
+                              className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all disabled:opacity-50"
+                              title="Save changes"
+                            >
+                              {isUpdatingDaysOff ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <Calendar className={cn("w-8 h-8", selectedEmployee.daysOff >= 14 ? "text-rose-400" : "text-blue-400")} />
+                      <Calendar className={cn("w-8 h-8 shrink-0", editDaysOffValue >= 14 ? "text-rose-400" : "text-blue-400")} />
                     </div>
                   </div>
                 </div>

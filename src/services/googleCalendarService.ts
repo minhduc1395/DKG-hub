@@ -10,7 +10,6 @@ export interface GoogleCalendarEvent {
   location?: string;
 }
 
-const CALENDAR_ID = 'vkis.business@gmail.com';
 const PROXY_URL = `/api/calendar/proxy`;
 
 // Note: We're using a local server-side proxy to avoid CORS issues.

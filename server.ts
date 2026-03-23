@@ -1,15 +1,35 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import axios from "axios";
+import cron from "node-cron";
+import { checkTaskDeadlines } from "./src/services/taskNotificationService";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Schedule task deadline notifications (Run at 4 PM local time / 11 PM UTC)
+  cron.schedule("0 23 * * *", async () => {
+    console.log("[Cron] Running task deadline check...");
+    await checkTaskDeadlines();
+  });
+
+  // Manual trigger for task deadline check (for testing)
+  app.post("/api/tasks/check-deadlines", async (req, res) => {
+    try {
+      await checkTaskDeadlines();
+      res.json({ status: "ok", message: "Task deadline check triggered successfully" });
+    } catch (error) {
+      console.error("[API] Error triggering task deadline check:", error);
+      res.status(500).json({ status: "error", message: "Failed to trigger task deadline check" });
+    }
+  });
+
   // Proxy endpoint for Google Calendar ICS
   app.get("/api/calendar/proxy", async (req, res) => {
     try {
-      const calendarId = 'vkis.business@gmail.com';
+      const calendarId = process.env.GOOGLE_CALENDAR_ID || 'vkis.business@gmail.com';
       const icsUrl = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
       
       console.log(`Fetching ICS from: ${icsUrl}`);

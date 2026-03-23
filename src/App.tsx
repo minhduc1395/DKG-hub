@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Sidebar, Tab } from './components/Sidebar';
-import { Menu, Loader2, Bell } from 'lucide-react';
+import { Menu, Loader2, Bell, CheckSquare, AlertCircle, MessageSquare } from 'lucide-react';
 import { User } from './types';
 import { UserProvider, useUser } from './context/UserContext';
 import { NotificationsModal, NotificationItem } from './components/DashboardModals';
@@ -49,6 +49,22 @@ function AppContent() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
+    if (!user) return;
+
+    // Real-time listener for notifications
+    const channel = supabase
+      .channel('notifications-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'notifications',
+        filter: `recipient_id=eq.${user.id}`
+      }, (payload) => {
+        console.log('Notification change received:', payload);
+        fetchNotifications();
+      })
+      .subscribe();
+
     const fetchNotifications = async () => {
       const { data } = await supabase
         .from('notifications')
@@ -57,24 +73,84 @@ function AppContent() {
         .order('created_at', { ascending: false });
       
       if (data) {
-        setNotifications(data.map((item: any) => ({
-          id: item.id,
-          icon: Bell,
-          iconBg: 'bg-slate-500/20',
-          iconColor: 'text-slate-400',
-          title: item.title,
-          desc: item.content,
-          time: formatDate(item.created_at),
-          category: item.category as any,
-          recipient_id: item.recipient_id,
-          is_read: item.is_read
-        })));
+        setNotifications(data.map((item: any) => {
+          let icon = Bell;
+          let iconBg = 'bg-slate-500/20';
+          let iconColor = 'text-slate-400';
+
+          if (item.category === 'task') {
+            icon = CheckSquare;
+            iconBg = 'bg-indigo-500/20';
+            iconColor = 'text-indigo-400';
+          } else if (item.category === 'system') {
+            icon = AlertCircle;
+            iconBg = 'bg-rose-500/20';
+            iconColor = 'text-rose-400';
+          } else if (item.category === 'news') {
+            icon = MessageSquare;
+            iconBg = 'bg-blue-500/20';
+            iconColor = 'text-blue-400';
+          }
+
+          return {
+            id: item.id,
+            icon,
+            iconBg,
+            iconColor,
+            title: item.title,
+            desc: item.content,
+            time: formatDate(item.created_at),
+            category: item.category as any,
+            recipient_id: item.recipient_id,
+            is_read: item.is_read
+          };
+        }));
       }
     };
-    if (user) fetchNotifications();
+
+    fetchNotifications();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const markAsRead = async (id: string | number) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+      
+      if (!error) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      }
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!user || notifications.length === 0) return;
+    
+    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .in('id', unreadIds);
+      
+      if (!error) {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      }
+    } catch (err) {
+      console.error('Error marking all notifications as read:', err);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'timeoff') {
@@ -176,7 +252,13 @@ function AppContent() {
           </div>
         </header>
 
-        <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} notifications={notifications} />
+        <NotificationsModal 
+          isOpen={showNotifications} 
+          onClose={() => setShowNotifications(false)} 
+          notifications={notifications} 
+          onMarkAsRead={markAsRead}
+          onMarkAllAsRead={markAllAsRead}
+        />
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:pt-6 lg:px-10 lg:pb-10 relative">
           <Suspense fallback={<LoadingFallback />}>
@@ -187,6 +269,8 @@ function AppContent() {
                 <Dashboard 
                   user={user} 
                   notifications={notifications}
+                  onMarkAsRead={markAsRead}
+                  onMarkAllAsRead={markAllAsRead}
                   onAction={(tab) => {
                     if (tab === 'request-time-off') {
                       setTimeOffModalDefaultOpen(true);

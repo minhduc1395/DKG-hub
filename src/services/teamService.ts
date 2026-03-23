@@ -150,5 +150,17 @@ export const teamService = {
       console.error('Error fetching team performance:', error);
       return [];
     }
+  },
+
+  async updateDaysOff(employeeId: string, used: number) {
+    const { error } = await supabase
+      .from('time_off_balances')
+      .upsert({ 
+        employee_id: employeeId, 
+        used: used,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'employee_id' });
+    
+    if (error) throw error;
   }
 };
