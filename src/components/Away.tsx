@@ -81,6 +81,8 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
     type: 'Annual Leave',
     startDate: '',
     endDate: '',
+    isHalfDay: false,
+    session: 'Morning' as 'Morning' | 'Afternoon',
     reason: ''
   });
 
@@ -93,10 +95,38 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
     setIsLoading(true);
     try {
       console.log('Fetching time off data for user:', user.id);
-      const [bal, hist] = await Promise.all([
+      let [bal, hist] = await Promise.all([
         timeOffService.fetchBalance(user.id),
         timeOffService.fetchHistory(user.id)
       ]);
+
+      // Apply intern logic or update default total
+      const isIntern = user.contractType?.toLowerCase().includes('intern');
+      if (isIntern && user.joiningDate) {
+        const join = new Date(user.joiningDate);
+        const now = new Date();
+        let months = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
+        
+        // If the current day is before the joining day, the last month isn't full yet
+        if (now.getDate() < join.getDate()) {
+          months--;
+        }
+        
+        const internTotal = Math.max(0, months) + 1; // Default 1 day + 1 day per month
+        bal = {
+          ...bal,
+          total: internTotal,
+          remaining: internTotal - bal.used
+        };
+      } else if (!isIntern && bal.total === 12) {
+        // If it's a regular staff and we have a balance in DB that is 12, update to 14 as requested
+        bal = {
+          ...bal,
+          total: 14,
+          remaining: 14 - bal.used
+        };
+      }
+
       console.log('Fetched history:', hist);
       setBalance(bal);
       setHistory(hist);
@@ -119,8 +149,13 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let { startDate, endDate } = formData;
+      let { startDate, endDate, isHalfDay, session, type } = formData;
       
+      if (isHalfDay) {
+        endDate = startDate;
+        type = `${type} (Half Day - ${session})`;
+      }
+
       // Ensure startDate is before or equal to endDate
       if (startDate && endDate) {
         const start = new Date(startDate);
@@ -135,11 +170,12 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         userId: user.id,
         userName: user.name,
         ...formData,
+        type,
         startDate,
         endDate
       });
       setIsModalOpen(false);
-      setFormData({ type: 'Annual Leave', startDate: '', endDate: '', reason: '' });
+      setFormData({ type: 'Annual Leave', startDate: '', endDate: '', isHalfDay: false, session: 'Morning', reason: '' });
       loadData();
     } catch (error) {
       console.error('Error submitting request:', error);
@@ -250,22 +286,9 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         {!isManagerMode && (
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="relative group overflow-hidden rounded-2xl transition-all duration-500 transform hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98]"
+            className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
           >
-            {/* Main Glass Body */}
-            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.1] to-transparent backdrop-blur-md border border-white/10 group-hover:border-white/20 transition-all duration-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] rounded-2xl" />
-            
-            {/* Top Gloss */}
-            <div className="absolute top-0 inset-x-0 h-[40%] bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-2xl" />
-            
-            {/* Content */}
-            <div className="relative z-10 px-6 py-3 flex items-center justify-center gap-2 text-white font-bold tracking-wide drop-shadow-md">
-              <Plus className="w-5 h-5" />
-              Request Leave
-            </div>
-            
-            {/* Sweep Effect */}
-            <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out skew-x-[-20deg] pointer-events-none" />
+            <Plus className="w-4 h-4" /> Request Leave
           </button>
         )}
       </div>
@@ -274,7 +297,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
       {!isManagerMode && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { label: 'Total Allowance', value: balance?.total || 0, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+            { label: 'Total Day Off', value: balance?.total || 0, color: 'text-blue-400', bg: 'bg-blue-500/10' },
             { label: 'Used', value: balance?.used || 0, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
             { label: 'Remaining', value: balance?.remaining || 0, color: 'text-amber-400', bg: 'bg-amber-500/10' },
           ].map((card, i) => (
@@ -283,12 +306,14 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="p-6 rounded-[2rem] bg-white/5 border border-white/5 flex flex-col gap-2"
+              className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-2"
             >
-              <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">{card.label}</span>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-4xl font-black ${card.color}`}>{card.value}</span>
-                <span className="text-slate-500 font-medium">days</span>
+              <div className="flex flex-col items-center text-center gap-2">
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{card.label}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-4xl font-black ${card.color}`}>{card.value}</span>
+                  <span className="text-slate-500 font-medium">days</span>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -299,7 +324,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         {/* Left Column: Calendar - Hidden in Manager Mode */}
         {!isManagerMode && (
           <div className="lg:col-span-1 space-y-6">
-            <div className="p-6 rounded-[2rem] bg-white/5 border border-white/5">
+            <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <CalendarIcon className="w-5 h-5 text-blue-400" />
@@ -344,17 +369,17 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   );
                 })}
               </div>
-              <div className="flex items-center gap-4 pt-4 border-t border-white/5">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+              <div className="flex items-center justify-around pt-4 border-t border-white/5">
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Approved</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Pending</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
+                  <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Rejected</span>
                 </div>
               </div>
@@ -364,7 +389,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
 
         {/* Right Column: History / Approvals */}
         <div className={`${isManagerMode ? 'w-full' : 'lg:col-span-2'} space-y-6`}>
-          <div className="rounded-[2rem] bg-white/5 border border-white/5 overflow-hidden">
+          <div className="rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] overflow-hidden">
             <div className="flex flex-wrap border-b border-white/5">
               {!isManagerMode ? (
                 <button 
@@ -416,7 +441,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                     ) : (
                       <div className="flex flex-col gap-4">
                         {approvalHistory.map((req) => (
-                          <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div key={req.id} className="p-5 rounded-2xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
                               {req.userAvatar ? (
                                 <img 
@@ -504,7 +529,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   ) : (
                     <div className="flex flex-col gap-4">
                       {approvals.map((req) => (
-                        <div key={req.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div key={req.id} className="p-5 rounded-2xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                           <div className="flex items-center gap-4">
                             {req.userAvatar ? (
                                <img 
@@ -583,11 +608,10 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Leave Type</label>
                     <div className="relative group">
-                      <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
                       <select 
                         value={formData.type}
                         onChange={(e) => setFormData({...formData, type: e.target.value})}
-                        className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all appearance-none cursor-pointer"
+                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
                       >
                         <option value="Annual Leave" className="text-black">Annual Leave</option>
                         <option value="Sick Leave" className="text-black">Sick Leave</option>
@@ -604,51 +628,81 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                         value={formData.startDate} 
                         onChange={(date) => setFormData({...formData, startDate: date})} 
                         placeholder="Select Start Day"
-                        inputClassName="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/10 text-white focus:outline-none transition-all placeholder:text-blue-200/20"
+                        inputClassName="w-full p-4 bg-white/5 rounded-2xl border border-white/10 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date</label>
-                      <DatePicker 
-                        value={formData.endDate} 
-                        onChange={(date) => setFormData({...formData, endDate: date})} 
-                        placeholder="Select End Day"
-                        inputClassName="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/10 text-white focus:outline-none transition-all placeholder:text-blue-200/20"
-                      />
-                    </div>
+                    {!formData.isHalfDay && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date</label>
+                        <DatePicker 
+                          value={formData.endDate} 
+                          onChange={(date) => setFormData({...formData, endDate: date})} 
+                          placeholder="Select End Day"
+                          inputClassName="w-full p-4 bg-white/5 rounded-2xl border border-white/10 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-4 py-2">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className="relative w-10 h-6">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={formData.isHalfDay}
+                          onChange={(e) => setFormData({...formData, isHalfDay: e.target.checked})}
+                        />
+                        <div className="w-10 h-6 bg-white/10 rounded-full border border-white/10 peer-checked:bg-blue-500/50 transition-all" />
+                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-4" />
+                      </div>
+                      <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Half Day</span>
+                    </label>
+
+                    {formData.isHalfDay && (
+                      <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({...formData, session: 'Morning'})}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                            formData.session === 'Morning' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
+                          )}
+                        >
+                          Morning
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({...formData, session: 'Afternoon'})}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                            formData.session === 'Afternoon' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
+                          )}
+                        >
+                          Afternoon
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reason</label>
                     <div className="relative group">
-                      <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
                       <textarea 
                         required
                         placeholder="Briefly explain your reason..."
                         value={formData.reason}
                         onChange={(e) => setFormData({...formData, reason: e.target.value})}
-                        className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all h-32 resize-none placeholder:text-blue-200/20"
+                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-32 resize-none placeholder:text-slate-500"
                       />
                     </div>
                   </div>
 
                   <button 
                     type="submit"
-                    className="w-full relative group overflow-hidden rounded-2xl transition-all duration-500 transform hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98]"
+                    className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center justify-center gap-2"
                   >
-                    {/* Main Glass Body */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-white/[0.1] to-transparent backdrop-blur-md border border-white/10 group-hover:border-white/20 transition-all duration-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] rounded-2xl" />
-                    
-                    {/* Top Gloss */}
-                    <div className="absolute top-0 inset-x-0 h-[40%] bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-2xl" />
-                    
-                    {/* Content */}
-                    <div className="relative z-10 py-4 flex items-center justify-center gap-2 text-white font-bold tracking-wide text-lg drop-shadow-md">
-                      Submit Request
-                    </div>
-                    
-                    {/* Sweep Effect */}
-                    <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out skew-x-[-20deg] pointer-events-none" />
+                    Submit Request
                   </button>
                 </form>
               </div>

@@ -1,4 +1,4 @@
-export type Role = 'staff' | 'manager' | 'accountant' | 'ceo';
+export type Role = 'staff' | 'manager' | 'accountant' | 'ceo' | 'bod';
 
 export interface AuthUser {
   id: string;
@@ -45,21 +45,23 @@ export interface Document {
   title: string;
   category_type: 'Guideline' | 'Template' | 'Contract';
   department: string;
-  type: 'pdf' | 'image' | 'doc' | 'sheet';
-  size: string;
-  updatedAt: string;
-  author: string;
-  tags: string[];
-  version: string;
-  url: string;
+  file_type: 'pdf' | 'image' | 'doc' | 'sheet';
+  file_url: string;
   drive_folder_id?: string;
+  version: string;
+  previous_file_url?: string;
+  previous_version?: string;
+  author_id: string;
+  author_name?: string;
+  created_at: string;
 }
 
 export interface DocumentHistory {
   id: string;
   document_id: string;
+  user_id: string;
+  user_name?: string;
   action: string;
-  user: string;
   timestamp: string;
 }
 

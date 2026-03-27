@@ -87,7 +87,7 @@ export function Settings() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6"
+          className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-[2rem] p-8"
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
@@ -108,7 +108,7 @@ export function Settings() {
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                 placeholder="Enter current password"
               />
             </div>
@@ -121,7 +121,7 @@ export function Settings() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                 placeholder="Enter new password"
               />
             </div>
@@ -134,7 +134,7 @@ export function Settings() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                 placeholder="Re-enter new password"
               />
             </div>
@@ -160,7 +160,7 @@ export function Settings() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Change Password
@@ -172,11 +172,11 @@ export function Settings() {
 
       {/* Confirmation Dialog */}
       {showConfirmDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-xl"
+            className="bg-black/40 backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-[2rem] p-8 max-w-sm w-full"
           >
             <h3 className="text-xl font-bold text-white mb-2">Confirm Password Change</h3>
             <p className="text-slate-400 mb-6">
@@ -191,7 +191,7 @@ export function Settings() {
               </button>
               <button
                 onClick={confirmChangePassword}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)]"
               >
                 Confirm
               </button>

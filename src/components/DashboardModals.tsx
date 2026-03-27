@@ -30,6 +30,68 @@ interface NewsModalProps {
   news: NewsItem[];
 }
 
+export function NewsDetailModal({ isOpen, onClose, item }: { isOpen: boolean; onClose: () => void; item: NewsItem | null }) {
+  return (
+    <AnimatePresence>
+      {isOpen && item && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110]"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] z-[111] flex flex-col overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-8 border-b border-white/5">
+              <div className="flex flex-col gap-1">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-blue-500/20 text-blue-300 w-fit">
+                  {item.type}
+                </span>
+                <h2 className="text-2xl font-bold text-white mt-2">{item.title}</h2>
+                <span className="text-xs font-medium text-slate-400">{item.date}</span>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto p-8">
+              <div 
+                className="text-slate-300 text-base leading-relaxed space-y-4 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:text-white [&>h1]:mt-6 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:text-white [&>h2]:mt-4 [&>ul]:list-disc [&>ul]:pl-6 [&>ol]:list-decimal [&>ol]:pl-6 [&>a]:text-blue-400 [&>a]:underline [&>img]:rounded-2xl [&>img]:mt-4 [&>img]:w-full [&>img]:shadow-2xl [&>blockquote]:border-l-4 [&>blockquote]:border-blue-500 [&>blockquote]:pl-6 [&>blockquote]:italic [&>blockquote]:text-slate-400 [&>blockquote]:bg-white/5 [&>blockquote]:py-4 [&>blockquote]:pr-4 [&>blockquote]:rounded-r-xl"
+                dangerouslySetInnerHTML={{ __html: item.desc }}
+              />
+
+              {item.file && (
+                <div className="flex items-center gap-3 mt-8 pt-6 border-t border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-blue-300" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-white">Attached File</span>
+                    <span className="text-xs text-slate-400">{item.file}</span>
+                  </div>
+                  <button className="ml-auto px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all border border-white/5">
+                    Download
+                  </button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
   const [expandedId, setExpandedId] = useState<number | string | null>(null);
 
@@ -46,13 +108,13 @@ export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100]"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh] bg-[#0F1115] border border-white/10 rounded-3xl shadow-2xl z-[101] flex flex-col overflow-hidden"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh] bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] z-[101] flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between p-6 border-b border-white/5">
               <h2 className="text-xl font-bold text-white">Company News</h2>
@@ -64,13 +126,19 @@ export function NewsModal({ isOpen, onClose, news }: NewsModalProps) {
               </button>
             </div>
             
-            <div className="overflow-y-auto p-6 flex flex-col gap-4">
+            <div 
+              className="overflow-y-auto p-6 flex flex-col gap-4"
+              onClick={() => setExpandedId(null)}
+            >
               {news.map((item) => {
                 const isExpanded = expandedId === item.id;
                 return (
                   <div 
                     key={item.id} 
-                    onClick={() => toggleExpand(item.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpand(item.id);
+                    }}
                     className={`p-5 rounded-2xl border transition-all group cursor-pointer ${
                       isExpanded 
                         ? 'bg-white/5 border-blue-500/30' 
@@ -139,8 +207,73 @@ interface NotificationsModalProps {
   onMarkAllAsRead: () => void;
 }
 
+export function NotificationDetailModal({ isOpen, onClose, item }: { isOpen: boolean; onClose: () => void; item: NotificationItem | null }) {
+  return (
+    <AnimatePresence>
+      {isOpen && item && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[120]"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] z-[121] flex flex-col overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-8 border-b border-white/5">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${item.iconBg}`}>
+                  <item.icon className={`w-6 h-6 ${item.iconColor}`} />
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 w-fit ${
+                    item.category === 'system' ? 'text-rose-400' :
+                    item.category === 'task' ? 'text-indigo-400' :
+                    item.category === 'news' ? 'text-blue-400' : 'text-slate-400'
+                  }`}>
+                    {item.category}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400 mt-1">{item.time}</span>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-white/5 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-4">
+              <h2 className="text-xl font-bold text-white leading-tight">{item.title}</h2>
+              <p className="text-slate-300 text-base leading-relaxed whitespace-pre-wrap">
+                {item.desc}
+              </p>
+            </div>
+
+            <div className="p-8 pt-0 mt-auto">
+              <button 
+                onClick={onClose}
+                className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export function NotificationsModal({ isOpen, onClose, notifications, onMarkAsRead, onMarkAllAsRead }: NotificationsModalProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'personal' | 'company'>('all');
+  const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
 
   const filteredNotifications = notifications.filter(item => {
     if (activeTab === 'all') return true;
@@ -160,13 +293,13 @@ export function NotificationsModal({ isOpen, onClose, notifications, onMarkAsRea
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100]"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md h-[600px] bg-[#0F1115] border border-white/10 rounded-3xl shadow-2xl z-[101] flex flex-col overflow-hidden"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md h-[600px] bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] z-[101] flex flex-col overflow-hidden"
           >
             <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
               <div className="flex items-center gap-3">
@@ -214,7 +347,10 @@ export function NotificationsModal({ isOpen, onClose, notifications, onMarkAsRea
               {filteredNotifications.map((item) => (
                 <div 
                   key={item.id} 
-                  onClick={() => !item.is_read && onMarkAsRead(item.id)}
+                  onClick={() => {
+                    if (!item.is_read) onMarkAsRead(item.id);
+                    setSelectedNotification(item);
+                  }}
                   className={`flex gap-4 p-4 rounded-2xl hover:bg-white/5 transition-colors group cursor-pointer border border-transparent hover:border-white/5 ${!item.is_read ? 'bg-white/[0.03]' : ''}`}
                 >
                   <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center ${item.iconBg}`}>
@@ -247,6 +383,12 @@ export function NotificationsModal({ isOpen, onClose, notifications, onMarkAsRea
                 </div>
               )}
             </div>
+
+            <NotificationDetailModal 
+              isOpen={!!selectedNotification} 
+              onClose={() => setSelectedNotification(null)} 
+              item={selectedNotification} 
+            />
           </motion.div>
         </>
       )}

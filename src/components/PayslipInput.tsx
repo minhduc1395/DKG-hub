@@ -309,7 +309,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
       )}
 
       {/* Content */}
-      <div className="bg-[#0A0F1E] border border-white/10 rounded-[2rem] p-6 lg:p-8 shadow-2xl relative overflow-hidden">
+      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[2rem] p-6 lg:p-8 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] relative overflow-hidden">
         {/* Loading Overlay */}
         {isUploading && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
@@ -363,7 +363,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                       handleUploadSubmit();
                     }}
                     disabled={isUploading}
-                    className="px-12 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
+                    className="px-12 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                   >
                     {isUploading ? 'Uploading...' : 'Upload'}
                     <Upload className="w-5 h-5" />
@@ -379,7 +379,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                 </div>
                 <div className="overflow-x-auto rounded-xl border border-white/10">
                   <table className="w-full text-left text-[10px] text-slate-300 border-collapse">
-                    <thead className="bg-white/5 text-slate-400 font-bold uppercase tracking-wider">
+                    <thead className="bg-white/[0.03] text-slate-400 font-bold uppercase tracking-wider">
                       <tr>
                         <th className="px-2 py-3 border-b border-white/10 w-16">Staff ID</th>
                         <th className="px-2 py-3 border-b border-white/10">Month</th>
@@ -401,7 +401,15 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                           <td className="px-2 py-3 font-mono text-[9px] truncate max-w-[60px]" title={row.user_id}>
                             {row.user_id.substring(0, 8)}...
                           </td>
-                          <td className="px-2 py-3 whitespace-nowrap">{row.month}/{row.year}</td>
+                          <td className="px-2 py-3 whitespace-nowrap">
+                            {(() => {
+                              const monthInt = parseInt(row.month);
+                              if (isNaN(monthInt)) return row.month;
+                              const date = new Date();
+                              date.setMonth(monthInt - 1);
+                              return date.toLocaleString('en-US', { month: 'short' });
+                            })()} {row.year}
+                          </td>
                           <td className="px-2 py-3">{row.base_salary.toLocaleString()}</td>
                           <td className="px-2 py-3">{row.commission.toLocaleString()}</td>
                           <td className="px-2 py-3">{row.ot_amount.toLocaleString()}</td>
@@ -440,7 +448,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   required
                   value={manualEntry.staffCode}
                   onChange={e => setManualEntry({...manualEntry, staffCode: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none"
                 >
                   <option value="" disabled className="bg-slate-900 text-slate-400">Select an employee</option>
                   {employees.map(emp => (
@@ -457,7 +465,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   required
                   value={manualEntry.monthYear}
                   onChange={e => setManualEntry({...manualEntry, monthYear: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 12/2025"
                 />
               </div>
@@ -467,7 +475,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.contract}
                   onChange={e => setManualEntry({...manualEntry, contract: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 10,000,000"
                 />
               </div>
@@ -477,7 +485,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.bonus}
                   onChange={e => setManualEntry({...manualEntry, bonus: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 1,500,000"
                 />
               </div>
@@ -487,7 +495,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.ot}
                   onChange={e => setManualEntry({...manualEntry, ot: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 0"
                 />
               </div>
@@ -497,7 +505,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.commission}
                   onChange={e => setManualEntry({...manualEntry, commission: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 0"
                 />
               </div>
@@ -507,7 +515,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.allowance}
                   onChange={e => setManualEntry({...manualEntry, allowance: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 1,000,000"
                 />
               </div>
@@ -517,7 +525,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.otherIncome}
                   onChange={e => setManualEntry({...manualEntry, otherIncome: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 500,000"
                 />
               </div>
@@ -527,7 +535,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.bhxh}
                   onChange={e => setManualEntry({...manualEntry, bhxh: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 800,000"
                 />
               </div>
@@ -537,7 +545,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.bhyt}
                   onChange={e => setManualEntry({...manualEntry, bhyt: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 150,000"
                 />
               </div>
@@ -547,7 +555,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.bhtn}
                   onChange={e => setManualEntry({...manualEntry, bhtn: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 100,000"
                 />
               </div>
@@ -557,7 +565,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.pit}
                   onChange={e => setManualEntry({...manualEntry, pit: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 78,947"
                 />
               </div>
@@ -567,7 +575,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.otherDeduction}
                   onChange={e => setManualEntry({...manualEntry, otherDeduction: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 0"
                 />
               </div>
@@ -577,7 +585,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
                   type="text" 
                   value={manualEntry.staffReceive}
                   onChange={e => setManualEntry({...manualEntry, staffReceive: e.target.value})}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-emerald-400 font-bold focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-emerald-400 placeholder:text-slate-500 font-bold focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                   placeholder="e.g. 12,500,000"
                 />
               </div>
@@ -587,7 +595,7 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
               <button 
                 type="submit"
                 disabled={isUploading}
-                className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors disabled:opacity-50 shadow-lg shadow-blue-600/20"
+                className="flex items-center gap-2 px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
               >
                 {isUploading ? 'Saving...' : 'Save Payslip'}
                 <Save className="w-5 h-5" />

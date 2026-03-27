@@ -42,7 +42,45 @@ export function Employees() {
       if (error) throw error;
 
       if (data) {
-        const mappedEmployees = data.map((profile: any) => {
+        const isBOD = 
+          user?.department?.toUpperCase() === 'BOD' || 
+          user?.role?.toLowerCase() === 'ceo' || 
+          user?.role?.toLowerCase() === 'chairman' ||
+          user?.role?.toLowerCase() === 'bod' ||
+          user?.position?.toLowerCase() === 'ceo' ||
+          user?.position?.toLowerCase() === 'chairman' ||
+          user?.position?.toLowerCase() === 'bod';
+
+        const isManager = user?.role === 'manager' || isBOD;
+
+        let visibleProfiles = data;
+
+        if (isManager && !isBOD && user?.id) {
+          // Recursive function to get all subordinates
+          const getSubordinateIds = (allProfiles: any[], managerId: string): string[] => {
+            const directSubordinates = allProfiles.filter(p => p.manager_id === managerId);
+            let allSubordinateIds = directSubordinates.map(p => p.id);
+            
+            for (const sub of directSubordinates) {
+              allSubordinateIds = [...allSubordinateIds, ...getSubordinateIds(allProfiles, sub.id)];
+            }
+            
+            return allSubordinateIds;
+          };
+
+          const subordinateIds = getSubordinateIds(data, user.id);
+          const visibleIds = [user.id, ...subordinateIds];
+          visibleProfiles = data.filter(p => visibleIds.includes(p.id));
+        } else if (!isBOD && user?.id) {
+          // Staff only sees themselves in the directory if not BOD/Manager? 
+          // Usually directory is public, but user asked to restrict.
+          // "CHỉ BOD là hiện đầy đủ thông tin... còn manage chỉ hiện... cấp dưới"
+          // This implies staff might not see anyone or only themselves.
+          // Let's assume staff sees only themselves if we follow the logic strictly.
+          visibleProfiles = data.filter(p => p.id === user.id);
+        }
+
+        const mappedEmployees = visibleProfiles.map((profile: any) => {
           const jobPosition = Array.isArray(profile.job_positions) ? profile.job_positions[0] : profile.job_positions;
           const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
           
@@ -83,7 +121,7 @@ export function Employees() {
         </div>
         <button 
           onClick={() => alert("This feature will be updated later.")}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-600/25 border border-blue-400/20"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)]"
         >
           + Add Employee
         </button>
@@ -97,7 +135,7 @@ export function Employees() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="group relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-md border border-white/10 p-6 flex flex-col items-center text-center hover:bg-white/10 transition-all duration-300"
+              className="group relative overflow-hidden rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] p-6 flex flex-col items-center text-center hover:bg-white/10 transition-all duration-300"
             >
               <div className="absolute top-4 right-4">
                 <button 
@@ -128,14 +166,14 @@ export function Employees() {
               <div className="flex items-center gap-3 w-full mt-auto">
                 <button 
                   onClick={() => window.location.href = `mailto:${emp.email}`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/5 text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/10 text-sm font-medium"
                 >
                   <Mail className="w-4 h-4" />
                   Email
                 </button>
                 <button 
                   onClick={() => alert("This feature will be updated later.")}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/5 text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors border border-white/10 text-sm font-medium"
                 >
                   <Phone className="w-4 h-4" />
                   Call

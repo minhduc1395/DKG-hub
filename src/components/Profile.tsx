@@ -35,9 +35,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
     setIsSaving(true);
     try {
       const updates = {
-        full_name: formData.name,
         avatar_url: formData.avatar,
-        department: formData.department,
         personal_email: formData.personalEmail,
         phone: formData.phone,
         permanent_address: formData.permanentAddress,
@@ -100,7 +98,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
         </div>
 
         {/* 1. Identity Section */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+        <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-3xl p-8">
           <div className="flex items-center gap-3 mb-6 text-blue-400">
             <UserIcon className="w-6 h-6" />
             <h2 className="text-xl font-bold text-white">Bio</h2>
@@ -156,7 +154,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
       </div>
 
       {/* 2. Professional Info */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-3xl p-8">
         <div className="flex items-center gap-3 mb-6 text-purple-400">
           <Briefcase className="w-6 h-6" />
           <h2 className="text-xl font-bold text-white">Role</h2>
@@ -197,7 +195,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
       </div>
 
       {/* 3. Contact & Legal Info */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-3xl p-8">
         <div className="flex items-center gap-3 mb-6 text-emerald-400">
           <FileText className="w-6 h-6" />
           <h2 className="text-xl font-bold text-white">Details</h2>
@@ -291,7 +289,7 @@ export function Profile({ user, onUpdate }: ProfileProps) {
       </div>
 
       {/* 4. Finance Info */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
+      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-3xl p-8">
         <div className="flex items-center gap-3 mb-6 text-amber-400">
           <CreditCard className="w-6 h-6" />
           <h2 className="text-xl font-bold text-white">Banking</h2>

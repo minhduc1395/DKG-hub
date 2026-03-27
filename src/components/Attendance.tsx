@@ -81,13 +81,13 @@ export function Attendance({ user }: AttendanceProps) {
   const totalDaysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
 
   return (
-    <div className="flex flex-col gap-8 max-w-6xl mx-auto w-full">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-white text-3xl md:text-4xl font-black tracking-tight">Attendance Log</h1>
           <p className="text-blue-200/60 text-base">View your check-in and check-out history.</p>
         </div>
-        <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-xl border border-white/10 w-full sm:w-auto">
+        <div className="flex items-center gap-3 bg-white/[0.03] backdrop-blur-2xl p-1.5 rounded-xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] w-full sm:w-auto">
           <button 
             onClick={prevMonth}
             className="px-4 py-2 rounded-lg text-slate-400 hover:text-white text-sm font-medium transition-colors flex-1 sm:flex-none justify-center whitespace-nowrap"
@@ -121,21 +121,21 @@ export function Attendance({ user }: AttendanceProps) {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
-            <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 flex flex-col gap-2">
+            <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-2">
               <div className="flex items-center gap-2 text-emerald-400 mb-2">
                 <Clock className="w-5 h-5" />
                 <span className="text-sm font-bold uppercase tracking-wider">Avg. Hours</span>
               </div>
               <span className="text-3xl font-black text-white">{avgHours}<span className="text-lg text-slate-400 font-medium">h / day</span></span>
             </div>
-            <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 flex flex-col gap-2">
+            <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-2">
               <div className="flex items-center gap-2 text-blue-400 mb-2">
                 <CalendarIcon className="w-5 h-5" />
                 <span className="text-sm font-bold uppercase tracking-wider">Days Present</span>
               </div>
               <span className="text-3xl font-black text-white">{daysPresent}<span className="text-lg text-slate-400 font-medium"> / {totalDaysInMonth}</span></span>
             </div>
-            <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 flex flex-col gap-2">
+            <div className="bg-white/[0.03] backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-2">
               <div className="flex items-center gap-2 text-orange-400 mb-2">
                 <ArrowDownRight className="w-5 h-5" />
                 <span className="text-sm font-bold uppercase tracking-wider">Late Arrivals</span>
@@ -144,10 +144,10 @@ export function Attendance({ user }: AttendanceProps) {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-md shadow-2xl border border-white/10 flex flex-col">
+          <div className="relative overflow-hidden rounded-3xl bg-white/[0.03] backdrop-blur-2xl shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] border border-white/10 flex flex-col">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-400">
-                <thead className="bg-white/5 text-xs uppercase text-slate-300 font-bold tracking-wider">
+                <thead className="bg-white/[0.03] text-xs uppercase text-slate-300 font-bold tracking-wider">
                   <tr>
                     <th className="px-6 py-5">Date</th>
                     <th className="px-6 py-5">Check In</th>

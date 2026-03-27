@@ -222,7 +222,24 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
             </button>
             
             <div className="flex gap-1 flex-1 justify-center font-bold text-white text-sm">
-              <span>{format(currentMonth, 'MMMM yyyy')}</span>
+              <select 
+                value={getMonth(currentMonth)} 
+                onChange={handleMonthChange}
+                className="bg-transparent hover:bg-white/5 rounded px-1 cursor-pointer focus:outline-none"
+              >
+                {months.map((month, i) => (
+                  <option key={month} value={i} className="bg-[#020617] text-white">{month}</option>
+                ))}
+              </select>
+              <select 
+                value={getYear(currentMonth)} 
+                onChange={handleYearChange}
+                className="bg-transparent hover:bg-white/5 rounded px-1 cursor-pointer focus:outline-none"
+              >
+                {years.map(year => (
+                  <option key={year} value={year} className="bg-[#020617] text-white">{year}</option>
+                ))}
+              </select>
             </div>
 
             <button onClick={nextMonth} className="p-1.5 hover:bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors">

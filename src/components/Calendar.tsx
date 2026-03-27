@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User as UserIcon, Bell, Info, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User as UserIcon, Bell, Info, Loader2, Cake } from 'lucide-react';
 import { cn, formatDate } from '../lib/utils';
 import { User } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -11,6 +11,7 @@ const eventTypes = {
   holiday: { label: 'Public Holiday', color: 'bg-emerald-500', textColor: 'text-emerald-400', bgColor: 'bg-emerald-500/20' },
   personal: { label: 'Personal Leave', color: 'bg-rose-500', textColor: 'text-rose-400', bgColor: 'bg-rose-500/20' },
   deadline: { label: 'Task Deadline', color: 'bg-yellow-500', textColor: 'text-yellow-400', bgColor: 'bg-yellow-500/20' },
+  birthday: { label: 'Birthday', color: 'bg-pink-500', textColor: 'text-pink-400', bgColor: 'bg-pink-500/20' },
 };
 
 interface CalendarEvent {
@@ -18,7 +19,7 @@ interface CalendarEvent {
   date: Date;
   endDate?: Date;
   title: string;
-  type: 'company' | 'holiday' | 'personal' | 'deadline';
+  type: 'company' | 'holiday' | 'personal' | 'deadline' | 'birthday';
 }
 
 interface TeamLeave {
@@ -95,6 +96,14 @@ export function Calendar({ user }: CalendarProps) {
         .lte('deadline', endOfMonth);
 
       if (tasksError) throw tasksError;
+
+      // Fetch all employee birthdays
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, dob')
+        .not('dob', 'is', null);
+
+      if (profilesError) throw profilesError;
 
       // Fetch Google Calendar events
       const googleEvents = await fetchGoogleCalendarEvents();
@@ -197,6 +206,34 @@ export function Calendar({ user }: CalendarProps) {
             title: event.title,
             type: 'company'
           });
+        });
+      }
+
+      if (profiles) {
+        profiles.forEach((profile: any) => {
+          if (profile.dob) {
+            const dob = new Date(profile.dob);
+            // Create birthday event for the current year being viewed
+            const birthdayDate = new Date(currentDate.getFullYear(), dob.getMonth(), dob.getDate());
+            
+            // Get family name and short name
+            const nameParts = (profile.full_name || 'Unknown').trim().split(/\s+/);
+            const familyName = nameParts[0];
+            const shortName = nameParts.length >= 2 
+              ? nameParts.slice(-2).join(' ') 
+              : nameParts[0];
+
+            const title = (familyName === 'Kim')
+              ? `Mr ${familyName}'s birthday`
+              : `${shortName}'s birthday`;
+
+            newEvents.push({
+              id: `birthday-${profile.id}`,
+              date: birthdayDate,
+              title: title,
+              type: 'birthday'
+            });
+          }
         });
       }
       
@@ -392,6 +429,7 @@ export function Calendar({ user }: CalendarProps) {
                   )}
                   title={event.title}
                 >
+                  {event.type === 'birthday' && <Cake className="w-2.5 h-2.5 mr-1 shrink-0" />}
                   {(!isMultiDay || showStartRounded || targetDate.getDay() === 1) ? event.title : '\u00A0'}
                 </div>
               );
@@ -434,7 +472,7 @@ export function Calendar({ user }: CalendarProps) {
         {/* Sidebar Section - Shown first on mobile to ensure visibility */}
         <div className="order-1 lg:order-2 lg:col-span-1 flex flex-col gap-6 lg:overflow-y-auto lg:pr-2 custom-scrollbar">
           {/* Date Selector - Moved here for perfect alignment with cards */}
-          <div className="flex items-center justify-between gap-4 bg-white/5 p-4 rounded-[2rem] border border-white/10 w-full shadow-lg shadow-black/20">
+          <div className="flex items-center justify-between gap-4 bg-white/[0.03] backdrop-blur-2xl p-4 rounded-[2rem] border border-white/10 w-full shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]">
             <button 
               onClick={prevMonth} 
               className="p-2.5 hover:bg-white/10 rounded-2xl text-slate-400 hover:text-white transition-all bg-white/5 border border-white/5 active:scale-90"
@@ -453,7 +491,7 @@ export function Calendar({ user }: CalendarProps) {
           </div>
 
           {/* Upcoming Events */}
-          <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex flex-col gap-4">
+          <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Bell className="w-4 h-4 text-blue-400" />
@@ -496,7 +534,7 @@ export function Calendar({ user }: CalendarProps) {
 
           {/* Manager Only: Team Availability */}
           {isManager && (
-            <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex flex-col gap-4">
+            <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <UserIcon className="w-4 h-4 text-emerald-400" />
@@ -553,7 +591,7 @@ export function Calendar({ user }: CalendarProps) {
         {/* Main Calendar Section */}
         <div className="order-2 lg:order-1 lg:col-span-3 flex flex-col">
           <div 
-            className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden flex flex-col shadow-2xl shadow-black/40"
+            className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-[2rem] overflow-hidden flex flex-col"
           >
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 border-b border-white/10 bg-white/5">

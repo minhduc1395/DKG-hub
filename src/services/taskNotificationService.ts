@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient.ts';
 import { format, addDays } from 'date-fns';
 
 export async function checkTaskDeadlines() {

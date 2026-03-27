@@ -40,18 +40,26 @@ export function PayslipHistory({ history, onSelect }: PayslipHistoryProps) {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => onSelect(payslip)}
-              className="group relative overflow-hidden rounded-3xl bg-white/5 border border-white/10 p-6 cursor-pointer hover:bg-white/10 transition-all"
+              className="group relative overflow-hidden rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] p-6 cursor-pointer hover:bg-white/10 transition-all"
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Left: Date & Net Salary */}
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex flex-col items-center justify-center border border-blue-500/20 shrink-0">
-                    <span className="text-[11px] font-bold text-blue-400 uppercase leading-none mb-0.5">{payslip.month.substring(0, 3)}</span>
-                    <span className="text-sm font-bold text-white leading-none">{payslip.year}</span>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex flex-col items-center justify-center border border-blue-500/20 shrink-0">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase leading-none mb-0.5">
+                      {(() => {
+                        const monthInt = parseInt(payslip.month);
+                        if (isNaN(monthInt)) return payslip.month.substring(0, 3);
+                        const date = new Date();
+                        date.setMonth(monthInt - 1);
+                        return date.toLocaleString('en-US', { month: 'short' });
+                      })()}
+                    </span>
+                    <span className="text-xs font-bold text-white leading-none">{payslip.year}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Net Salary</span>
-                    <span className="text-xl font-black text-[#10b981]">{formatCurrency(netSalary)}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Net Salary</span>
+                    <span className="text-lg font-black text-[#10b981]">{formatCurrency(netSalary)}</span>
                   </div>
                 </div>
 
@@ -90,7 +98,7 @@ export function PayslipHistory({ history, onSelect }: PayslipHistoryProps) {
       </div>
       
       {history.length === 0 && (
-        <div className="text-center py-20 bg-white/5 rounded-[2.5rem] border border-dashed border-white/10">
+        <div className="text-center py-20 bg-white/[0.03] backdrop-blur-2xl rounded-[2.5rem] border border-dashed border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]">
           <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
             <Wallet className="w-8 h-8 text-slate-500" />
           </div>

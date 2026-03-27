@@ -161,16 +161,11 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
   }
 
   if (viewingHistoryFor) {
-    // In a real app, we would fetch history for this specific employee here
-    // For now, we'll just show "No data available" if we don't have it, or filter from global history if appropriate
-    // But since we don't have an endpoint for "get payslips by employee ID" in the service yet (except getMyPayslips which is for current user),
-    // we might need to add that or just show a placeholder.
-    // Actually, getMyPayslips takes userId, so we can use it!
-    
     return (
       <EmployeeHistoryView 
         employeeId={viewingHistoryFor.employeeId} 
         employeeName={viewingHistoryFor.employeeName}
+        avatar={viewingHistoryFor.avatar}
         onBack={handleBackToApprovals}
         onSelect={(payslip) => setSelectedPayslip(payslip)}
       />
@@ -212,7 +207,7 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex items-center gap-4">
+        <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
             <DollarSign className="w-6 h-6 text-blue-400" />
           </div>
@@ -221,22 +216,28 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
             <p className="text-xl font-black text-white">{formatCurrency(pendingRequests.reduce((acc, curr) => acc + curr.netSalary, 0))}</p>
           </div>
         </div>
-        <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex items-center gap-4">
+        <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
             <CheckCircle2 className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved This Month</p>
-            <p className="text-xl font-black text-white">{history.length} Payslips</p>
+            <p className="text-xl font-black text-white">
+              <span>{history.length}</span>
+              <span className="ml-1.5">Payslips</span>
+            </p>
           </div>
         </div>
-        <div className="p-6 rounded-[2rem] bg-white/5 border border-white/10 flex items-center gap-4">
+        <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
             <AlertCircle className="w-6 h-6 text-orange-400" />
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Action</p>
-            <p className="text-xl font-black text-white">{pendingRequests.length} Requests</p>
+            <p className="text-xl font-black text-white">
+              <span>{pendingRequests.length}</span>
+              <span className="ml-1.5">Requests</span>
+            </p>
           </div>
         </div>
       </div>
@@ -252,7 +253,7 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
               placeholder="Search employee name or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
             />
           </div>
 
@@ -265,7 +266,7 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
               <span className="text-xs font-bold text-blue-400">{selectedIds.length} selected</span>
               <button 
                 onClick={approveSelected}
-                className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2"
               >
                 <CheckSquare className="w-3.5 h-3.5" /> Approve Selected
               </button>
@@ -274,10 +275,10 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
         </div>
 
         {/* Table/List */}
-        <div className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden flex flex-col lg:flex-1 lg:min-h-0">
+        <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] rounded-[2rem] overflow-hidden flex flex-col lg:flex-1 lg:min-h-0">
           <div className="overflow-x-auto lg:overflow-auto lg:flex-1 w-full custom-scrollbar relative">
             <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-[#0a0a0a] text-xs uppercase text-slate-400 font-bold tracking-wider border-b border-white/10">
+              <thead className="sticky top-0 z-10 bg-white/[0.03] backdrop-blur-md text-xs uppercase text-slate-400 font-bold tracking-wider border-b border-white/10">
                 <tr>
                   {activeView === 'pending' && (
                     <th className="px-6 py-4 w-10">
@@ -324,22 +325,34 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
                         className="flex items-center gap-3 cursor-pointer group/emp"
                         onClick={() => handleViewDetails(request)}
                       >
-                        <div className="relative">
-                          <img src={request.employeeId === user?.id ? user.avatar : request.avatar} alt="" className="w-10 h-10 rounded-full border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" />
+                        <div className="relative hidden sm:block">
+                          <img 
+                            src={request.employeeId === user?.id ? user.avatar : request.avatar} 
+                            alt="" 
+                            className="w-10 h-10 rounded-full object-cover border border-white/10 group-hover/emp:border-blue-500/50 transition-colors" 
+                          />
                           <div className="absolute inset-0 bg-blue-500/20 rounded-full opacity-0 group-hover/emp:opacity-100 transition-opacity flex items-center justify-center">
                             {loadingDetails ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Eye className="w-4 h-4 text-white" />}
                           </div>
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-white group-hover/emp:text-blue-400 transition-colors">{request.employeeName}</span>
-                          <span className="text-xs text-slate-500">{request.employeeId} • {request.department}</span>
+                          <span className="text-xs text-slate-500">{request.department}</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <CalendarClock className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="text-slate-300">{request.month} {request.year}</span>
+                        <span className="text-slate-300">
+                          {(() => {
+                            const monthInt = parseInt(request.month);
+                            if (isNaN(monthInt)) return request.month;
+                            const date = new Date();
+                            date.setMonth(monthInt - 1);
+                            return date.toLocaleString('en-US', { month: 'short' });
+                          })()} {request.year}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -404,9 +417,10 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
 }
 
 // Sub-component for viewing employee history
-function EmployeeHistoryView({ employeeId, employeeName, onBack, onSelect }: { 
+function EmployeeHistoryView({ employeeId, employeeName, avatar, onBack, onSelect }: { 
   employeeId: string, 
   employeeName: string, 
+  avatar: string,
   onBack: () => void,
   onSelect: (payslip: PayslipData) => void
 }) {
@@ -438,9 +452,12 @@ function EmployeeHistoryView({ employeeId, employeeName, onBack, onSelect }: {
         >
           <ChevronRight className="w-6 h-6 rotate-180" />
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Payslip History</h1>
-          <p className="text-slate-400 text-sm">Viewing history for <span className="text-blue-400 font-bold">{employeeName}</span></p>
+        <div className="flex items-center gap-4">
+          <img src={avatar} alt="" className="w-12 h-12 rounded-full object-cover border border-white/10 hidden sm:block" />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Payslip History</h1>
+            <p className="text-slate-400 text-sm">Viewing history for <span className="text-blue-400 font-bold">{employeeName}</span></p>
+          </div>
         </div>
       </div>
       

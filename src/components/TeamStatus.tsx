@@ -551,7 +551,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                 placeholder="Search team members..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
               />
             </div>
 
@@ -787,13 +787,12 @@ export function TeamStatus({ user }: TeamStatusProps) {
                 <form onSubmit={handleAssignTask} className="space-y-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assign To</label>
-                    <div className="relative group">
-                      <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
+                    <div className="relative">
                       <select 
                         required
                         value={newTask.assigneeId}
                         onChange={(e) => setNewTask({...newTask, assigneeId: e.target.value})}
-                        className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all appearance-none cursor-pointer"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
                       >
                         <option value="" className="text-black">Select Team Member</option>
                         {team.map((member) => (
@@ -808,29 +807,27 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Task Title</label>
-                    <div className="relative group">
-                      <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
+                    <div className="relative">
                       <input 
                         type="text"
                         required
                         placeholder="e.g. Q4 Financial Report"
                         value={newTask.title}
                         onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-                        className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all placeholder:text-slate-600"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
-                    <div className="relative group">
-                      <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
+                    <div className="relative">
                       <textarea 
                         required
                         placeholder="Detailed instructions..."
                         value={newTask.description}
                         onChange={(e) => setNewTask({...newTask, description: e.target.value})}
-                        className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all h-32 resize-none placeholder:text-slate-600"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-32 resize-none"
                       />
                     </div>
                   </div>
@@ -838,12 +835,11 @@ export function TeamStatus({ user }: TeamStatusProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Priority</label>
-                      <div className="relative group">
-                        <div className="absolute inset-0 bg-white/[0.03] rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
+                      <div className="relative">
                         <select 
                           value={newTask.priority}
                           onChange={(e) => setNewTask({...newTask, priority: e.target.value as any})}
-                          className="w-full p-4 bg-transparent rounded-2xl text-white focus:outline-none relative z-10 transition-all appearance-none cursor-pointer"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
                         >
                           <option value="Low" className="text-black">Low</option>
                           <option value="Medium" className="text-black">Medium</option>
@@ -858,7 +854,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                         value={newTask.deadline} 
                         onChange={(date) => setNewTask({...newTask, deadline: date})} 
                         placeholder="Select Date"
-                        inputClassName="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/10 text-white focus:outline-none transition-all placeholder:text-slate-600"
+                        inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                       />
                     </div>
                   </div>
@@ -1169,7 +1165,15 @@ export function TeamStatus({ user }: TeamStatusProps) {
                                   <FileText className="w-5 h-5 text-emerald-400" />
                                 </div>
                                 <div>
-                                  <p className="font-bold text-white text-sm">Payslip {payslip.month}/{payslip.year}</p>
+                                  <p className="font-bold text-white text-sm">
+                                    Payslip {(() => {
+                                      const monthInt = parseInt(payslip.month);
+                                      if (isNaN(monthInt)) return payslip.month;
+                                      const date = new Date();
+                                      date.setMonth(monthInt - 1);
+                                      return date.toLocaleString('en-US', { month: 'short' });
+                                    })()} {payslip.year}
+                                  </p>
                                   <p className="text-[10px] text-slate-400">Net Salary: {(payslip.netSalary || 0).toLocaleString()} VND</p>
                                 </div>
                               </div>

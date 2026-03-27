@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Sidebar, Tab } from './components/Sidebar';
+import { StarsBackground } from './components/StarsBackground';
 import { Menu, Loader2, Bell, CheckSquare, AlertCircle, MessageSquare } from 'lucide-react';
 import { User } from './types';
 import { UserProvider, useUser } from './context/UserContext';
@@ -19,6 +20,7 @@ const Calendar = lazy(() => import('./components/Calendar').then(m => ({ default
 const Profile = lazy(() => import('./components/Profile').then(m => ({ default: m.Profile })));
 const Away = lazy(() => import('./components/Away').then(m => ({ default: m.Away })));
 const Documents = lazy(() => import('./components/Documents').then(m => ({ default: m.Documents })));
+const Advances = lazy(() => import('./components/Advances').then(m => ({ default: m.Advances })));
 const DkgTool = lazy(() => import('./components/DkgTool').then(m => ({ default: m.DkgTool })));
 const PayslipApprovals = lazy(() => import('./components/PayslipApprovals').then(m => ({ default: m.PayslipApprovals })));
 const PayslipInput = lazy(() => import('./components/PayslipInput').then(m => ({ default: m.PayslipInput })));
@@ -212,7 +214,17 @@ function AppContent() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-row overflow-hidden bg-background-dark">
+    <div className="flex min-h-screen w-full flex-row overflow-hidden relative">
+      {/* Cosmic Background Elements */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <StarsBackground />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-[30rem] h-[30rem] bg-indigo-500/10 rounded-full blur-[150px]"></div>
+        
+        {/* Planetary Curve */}
+        <div className="absolute -bottom-[40vh] left-1/2 -translate-x-1/2 w-[150vw] h-[50vh] bg-black rounded-[100%] shadow-[0_-50px_150px_rgba(59,130,246,0.15)] border-t border-white/5"></div>
+      </div>
+      
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -223,7 +235,7 @@ function AppContent() {
       />
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header className="flex lg:hidden items-center justify-between p-4 bg-white/5 border-b border-white/10 backdrop-blur-md sticky top-0 z-50">
+        <header className="flex lg:hidden items-center justify-between p-4 bg-white/5 border-b border-white/10 backdrop-blur-xl sticky top-0 z-50">
           <div className="flex items-center gap-2">
             <img 
               src="https://i.postimg.cc/nr1gWnR4/Untitled_design_(3).png" 
@@ -261,124 +273,136 @@ function AppContent() {
         />
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:pt-6 lg:px-10 lg:pb-10 relative">
-          <Suspense fallback={<LoadingFallback />}>
-            <div className={activeTab === 'dashboard' ? 'block h-full' : 'hidden'}>
-              {viewingPayslip ? (
-                <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
-              ) : (
-                <Dashboard 
-                  user={user} 
-                  notifications={notifications}
-                  onMarkAsRead={markAsRead}
-                  onMarkAllAsRead={markAllAsRead}
-                  onAction={(tab) => {
-                    if (tab === 'request-time-off') {
-                      setTimeOffModalDefaultOpen(true);
-                      setActiveTab('timeoff');
-                    } else if (tab === 'payslip') {
-                      // If we have payslips loaded, show the first one, otherwise switch tab to load them
-                      if (payslipHistory.length > 0) {
-                        setViewingPayslip(payslipHistory[0]);
+          <div className="max-w-7xl mx-auto w-full h-full">
+            <Suspense fallback={<LoadingFallback />}>
+              <div className={activeTab === 'dashboard' ? 'block h-full' : 'hidden'}>
+                {viewingPayslip ? (
+                  <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
+                ) : (
+                  <Dashboard 
+                    user={user} 
+                    notifications={notifications}
+                    onMarkAsRead={markAsRead}
+                    onMarkAllAsRead={markAllAsRead}
+                    onAction={(tab) => {
+                      if (tab === 'request-time-off') {
+                        setTimeOffModalDefaultOpen(true);
+                        setActiveTab('timeoff');
+                      } else if (tab === 'payslip') {
+                        // If we have payslips loaded, show the first one, otherwise switch tab to load them
+                        if (payslipHistory.length > 0) {
+                          setViewingPayslip(payslipHistory[0]);
+                        } else {
+                           setActiveTab('payslip');
+                        }
                       } else {
-                         setActiveTab('payslip');
+                        setActiveTab(tab as Tab);
                       }
-                    } else {
-                      setActiveTab(tab as Tab);
-                    }
-                  }} 
+                    }} 
+                  />
+                )}
+              </div>
+              
+              <div className={activeTab === 'calendar' ? 'block h-full' : 'hidden'}>
+                <Calendar user={user} />
+              </div>
+
+              <div className={activeTab === 'tasks' ? 'block h-full' : 'hidden'}>
+                <Tasks user={user} />
+              </div>
+
+              <div className={activeTab === 'employees' ? 'block h-full' : 'hidden'}>
+                <Employees />
+              </div>
+
+              <div className={activeTab === 'attendance' ? 'block h-full' : 'hidden'}>
+                <Attendance user={user} />
+              </div>
+
+              <div className={activeTab === 'profile' ? 'block h-full' : 'hidden'}>
+                <Profile user={user} onUpdate={(u) => setUser(u)} />
+              </div>
+
+              <div className={activeTab === 'payslip' ? 'block h-full' : 'hidden'}>
+                {viewingPayslip ? (
+                  <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
+                ) : (
+                  loadingPayslips ? <LoadingFallback /> :
+                  <PayslipHistory history={payslipHistory} onSelect={(p) => setViewingPayslip(p)} />
+                )}
+              </div>
+
+              <div className={activeTab === 'timeoff' ? 'block h-full' : 'hidden'}>
+                <Away 
+                  user={user} 
+                  initialTab="my-requests" 
+                  defaultOpenModal={timeOffModalDefaultOpen} 
                 />
-              )}
-            </div>
-            
-            <div className={activeTab === 'calendar' ? 'block h-full' : 'hidden'}>
-              <Calendar user={user} />
-            </div>
+              </div>
 
-            <div className={activeTab === 'tasks' ? 'block h-full' : 'hidden'}>
-              <Tasks user={user} />
-            </div>
+              <div className={activeTab === 'documents' ? 'block h-full' : 'hidden'}>
+                <Documents />
+              </div>
 
-            <div className={activeTab === 'employees' ? 'block h-full' : 'hidden'}>
-              <Employees />
-            </div>
+              <div className={activeTab === 'advances' ? 'block h-full' : 'hidden'}>
+                <Advances />
+              </div>
 
-            <div className={activeTab === 'attendance' ? 'block h-full' : 'hidden'}>
-              <Attendance user={user} />
-            </div>
+              <div className={activeTab === 'form' ? 'block h-full' : 'hidden'}>
+                <Form />
+              </div>
 
-            <div className={activeTab === 'profile' ? 'block h-full' : 'hidden'}>
-              <Profile user={user} onUpdate={(u) => setUser(u)} />
-            </div>
-
-            <div className={activeTab === 'payslip' ? 'block h-full' : 'hidden'}>
-              {viewingPayslip ? (
-                <PayslipDetail data={viewingPayslip} onBack={() => setViewingPayslip(null)} />
-              ) : (
-                loadingPayslips ? <LoadingFallback /> :
-                <PayslipHistory history={payslipHistory} onSelect={(p) => setViewingPayslip(p)} />
-              )}
-            </div>
-
-            <div className={activeTab === 'timeoff' ? 'block h-full' : 'hidden'}>
-              <Away 
-                user={user} 
-                initialTab="my-requests" 
-                defaultOpenModal={timeOffModalDefaultOpen} 
-              />
-            </div>
-
-            <div className={activeTab === 'documents' ? 'block h-full' : 'hidden'}>
-              <Documents />
-            </div>
-
-            <div className={activeTab === 'form' ? 'block h-full' : 'hidden'}>
-              <Form />
-            </div>
-
-            <div className={activeTab === 'finance' ? 'block h-full' : 'hidden'}>
-              <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
-                  <span className="text-4xl">💰</span>
-                </div>
-                <h2 className="text-2xl font-black text-white mb-2">Finance Module</h2>
-                <p className="text-slate-400 max-w-xs mx-auto">This feature is currently under development. Stay tuned for updates!</p>
-                <div className="mt-8 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  Coming Soon
+              <div className={activeTab === 'finance' ? 'block h-full' : 'hidden'}>
+                <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                  <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
+                    <span className="text-4xl">💰</span>
+                  </div>
+                  <h2 className="text-2xl font-black text-white mb-2">Finance Module</h2>
+                  <p className="text-slate-400 max-w-xs mx-auto">This feature is currently under development. Stay tuned for updates!</p>
+                  <div className="mt-8 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Coming Soon
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className={activeTab === 'settings' ? 'block h-full' : 'hidden'}>
-              <Settings />
-            </div>
-
-            <div className={activeTab === 'dkg-tool' ? 'block h-full' : 'hidden'}>
-              <DkgTool user={user} />
-            </div>
-            
-            {/* Manager specific tabs */}
-            <div className={activeTab === 'team-status' ? 'block h-full' : 'hidden'}>
-              <TeamStatus user={user} />
-            </div>
-
-            <div className={activeTab === 'approvals' ? 'block h-full' : 'hidden'}>
-              <Away user={user} initialTab="approvals" />
-            </div>
-
-            <div className={activeTab === 'payslip-approvals' ? 'block h-full' : 'hidden'}>
-              <PayslipApprovals user={user} />
-            </div>
-
-            {(user.role === 'accountant' || 
-              user.role === 'ceo' || 
-              user.position?.toLowerCase() === 'ceo' || 
-              user.position?.toLowerCase() === 'accountant' ||
-              user.position?.toLowerCase() === 'kế toán') && (
-              <div className={activeTab === 'payslip-input' ? 'block h-full' : 'hidden'}>
-                <PayslipInput onSuccess={() => setActiveTab('payslip-approvals')} />
+              <div className={activeTab === 'settings' ? 'block h-full' : 'hidden'}>
+                <Settings />
               </div>
-            )}
-          </Suspense>
+
+              <div className={activeTab === 'dkg-tool' ? 'block h-full' : 'hidden'}>
+                <DkgTool user={user} />
+              </div>
+              
+              {/* Manager specific tabs */}
+              <div className={activeTab === 'team-status' ? 'block h-full' : 'hidden'}>
+                <TeamStatus user={user} />
+              </div>
+
+              <div className={activeTab === 'approvals' ? 'block h-full' : 'hidden'}>
+                <Away user={user} initialTab="approvals" />
+              </div>
+
+              <div className={activeTab === 'advance-approvals' ? 'block h-full' : 'hidden'}>
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+                  <Advances isApprovalView={true} />
+                </Suspense>
+              </div>
+              
+              <div className={activeTab === 'payslip-approvals' ? 'block h-full' : 'hidden'}>
+                <PayslipApprovals user={user} />
+              </div>
+
+              {(user.role === 'accountant' || 
+                user.role === 'ceo' || 
+                user.position?.toLowerCase() === 'ceo' || 
+                user.position?.toLowerCase() === 'accountant' ||
+                user.position?.toLowerCase() === 'kế toán') && (
+                <div className={activeTab === 'payslip-input' ? 'block h-full' : 'hidden'}>
+                  <PayslipInput onSuccess={() => setActiveTab('payslip-approvals')} />
+                </div>
+              )}
+            </Suspense>
+          </div>
         </div>
       </main>
     </div>

@@ -55,7 +55,7 @@ export function Form() {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 p-8 relative overflow-hidden"
+        className="bg-white/[0.03] backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] p-8 relative overflow-hidden"
       >
         {isSuccess && (
           <motion.div 
@@ -88,7 +88,7 @@ export function Form() {
                   placeholder="John Doe"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-black/40 transition-all"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                 />
               </div>
             </div>
@@ -105,7 +105,7 @@ export function Form() {
                   placeholder="john@company.com"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-black/40 transition-all"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
                 />
               </div>
             </div>
@@ -123,7 +123,7 @@ export function Form() {
                 placeholder="How can we help you?"
                 value={formData.message}
                 onChange={(e) => setFormData({...formData, message: e.target.value})}
-                className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:bg-black/40 transition-all resize-none"
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all resize-none"
               />
             </div>
           </div>
@@ -132,7 +132,7 @@ export function Form() {
             <button 
               type="submit"
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-600/25 border border-blue-400/20 flex items-center gap-2"
+              className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>

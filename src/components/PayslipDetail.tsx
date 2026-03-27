@@ -81,7 +81,7 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative overflow-hidden rounded-[2.5rem] bg-[#0A0F1E] border border-white/10 shadow-2xl"
+        className="relative overflow-hidden rounded-[2.5rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]"
       >
         {/* Glass Glow Effect */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gradient-to-b from-blue-500/10 to-transparent blur-2xl pointer-events-none" />
@@ -90,11 +90,19 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
           {/* Month/Year Summary */}
           <div className="text-center space-y-1">
             <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">Earnings for</p>
-            <h2 className="text-3xl font-black text-white">{data.month} {data.year}</h2>
+            <h2 className="text-3xl font-black text-white">
+              {(() => {
+                const monthInt = parseInt(data.month);
+                if (isNaN(monthInt)) return data.month;
+                const date = new Date();
+                date.setMonth(monthInt - 1);
+                return date.toLocaleString('en-US', { month: 'short' });
+              })()} {data.year}
+            </h2>
           </div>
 
           {/* Net Salary - The Hero Stat */}
-          <div className="bg-white/[0.03] rounded-3xl p-6 border border-white/5 text-center space-y-2">
+          <div className="bg-white/[0.03] rounded-3xl p-6 border border-white/10 shadow-[inset_0_0_20px_rgba(255,255,255,0.02)] text-center space-y-2">
             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Net Salary</p>
             <p className="text-4xl font-black text-[#10b981] drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]">
               {formatCurrency(netSalary)}
@@ -238,7 +246,7 @@ export function PayslipDetail({ data, onBack, onClose }: PayslipDetailProps) {
         >
           History
         </button>
-        <button className="py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl text-white font-bold text-sm shadow-lg shadow-blue-600/20 transition-all active:scale-95">
+        <button className="py-4 bg-blue-500 hover:bg-blue-600 rounded-2xl text-white font-bold text-sm shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all active:scale-95">
           Support
         </button>
       </div>

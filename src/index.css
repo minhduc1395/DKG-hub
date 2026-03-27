@@ -1,6 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+:root {
+  font-size: 16px;
+}
+
+@media (max-width: 1600px) {
+  :root {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 1440px) {
+  :root {
+    font-size: 14.5px;
+  }
+}
+
+@media (max-width: 1280px) {
+  :root {
+    font-size: 14px;
+  }
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --color-primary: #2563eb;
@@ -34,18 +56,6 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
-}
-
-.stars-pattern {
-  background-image: 
-    radial-gradient(circle at 20px 30px, white 1px, transparent 1.5px),
-    radial-gradient(circle at 40px 70px, white 1px, transparent 1.5px),
-    radial-gradient(circle at 50px 160px, white 1px, transparent 1.5px),
-    radial-gradient(circle at 90px 40px, white 1.5px, transparent 2px),
-    radial-gradient(circle at 130px 80px, white 1px, transparent 1.5px),
-    radial-gradient(circle at 160px 120px, white 1.5px, transparent 2px);
-  background-size: 200px 200px;
-  background-repeat: repeat;
 }
 
 /* Hide default date placeholder in Chrome/Safari */

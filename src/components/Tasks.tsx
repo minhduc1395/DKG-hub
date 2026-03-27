@@ -933,7 +933,7 @@ export function Tasks({ user }: TasksProps) {
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
             />
           </div>
           <button 
@@ -2832,7 +2832,7 @@ export function Tasks({ user }: TasksProps) {
                   <select 
                     value={newTask.assigneeId} 
                     onChange={e => setNewTask({...newTask, assigneeId: e.target.value})} 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none [color-scheme:dark]"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
                   >
                     <option value={user.id} className="bg-[#0F1115] text-white">Me</option>
                     {employees.filter(e => e.id !== user.id).map(emp => (
@@ -2842,16 +2842,16 @@ export function Tasks({ user }: TasksProps) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Task Title</label>
-                  <input required type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. Prepare weekly report" />
+                  <input required type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" placeholder="e.g. Prepare weekly report" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Description</label>
-                  <textarea required value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors h-24 resize-none" placeholder="Task details..." />
+                  <textarea required value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-24 resize-none" placeholder="Task details..." />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase">Priority</label>
-                    <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none [color-scheme:dark]">
+                    <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value as any})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer">
                       <option value="Low" className="bg-[#0F1115] text-white">Low</option>
                       <option value="Medium" className="bg-[#0F1115] text-white">Medium</option>
                       <option value="High" className="bg-[#0F1115] text-white">High</option>
@@ -2863,14 +2863,14 @@ export function Tasks({ user }: TasksProps) {
                       value={newTask.deadline} 
                       onChange={date => setNewTask({...newTask, deadline: date})} 
                       placeholder="Select deadline..."
-                      inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" 
+                      inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" 
                     />
                   </div>
                 </div>
                 <button 
                   type="submit" 
                   disabled={!newTask.title.trim() || !newTask.description.trim()}
-                  className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-500"
+                  className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-500"
                 >
                   Create Task
                 </button>
@@ -2910,7 +2910,7 @@ export function Tasks({ user }: TasksProps) {
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase">Feedback / Reason</label>
-                  <textarea required value={feedbackMessage} onChange={e => setFeedbackMessage(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors h-24 resize-none" placeholder="Explain why you need an extension or provide feedback..." />
+                  <textarea required value={feedbackMessage} onChange={e => setFeedbackMessage(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-24 resize-none" placeholder="Explain why you need an extension or provide feedback..." />
                 </div>
                 
                 <div className="space-y-2">
@@ -2919,11 +2919,11 @@ export function Tasks({ user }: TasksProps) {
                     value={requestedDeadline} 
                     onChange={date => setRequestedDeadline(date)} 
                     placeholder="Select new deadline..."
-                    inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" 
+                    inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" 
                   />
                 </div>
 
-                <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] flex items-center justify-center gap-2">
+                <button type="submit" className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center justify-center gap-2">
                   <Send className="w-4 h-4" /> Send to Manager
                 </button>
               </form>

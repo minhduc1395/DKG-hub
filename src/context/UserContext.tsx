@@ -2,20 +2,38 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
+export type SimulatedRole = 'staff' | 'accountant' | 'bod' | 'manager' | null;
+
 interface UserContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isAuthenticated: boolean;
   isLoading: boolean;
   logout: () => Promise<void>;
+  simulatedRole: SimulatedRole;
+  setSimulatedRole: React.Dispatch<React.SetStateAction<SimulatedRole>>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [actualUser, setActualUser] = useState<User | null>(null);
+  const [simulatedRole, setSimulatedRole] = useState<SimulatedRole>(null);
   const [isLoading, setIsLoading] = useState(true);
   const fetchingProfileRef = React.useRef(false);
+
+  const user = React.useMemo(() => {
+    if (!actualUser) return null;
+    if (actualUser.email === 'admin@gmail.com' && simulatedRole) {
+      return {
+        ...actualUser,
+        role: simulatedRole as any,
+        department: simulatedRole === 'bod' ? 'BOD' : (simulatedRole === 'accountant' ? 'Finance' : actualUser.department),
+        position: simulatedRole === 'bod' ? 'CEO' : (simulatedRole === 'accountant' ? 'Accountant' : (simulatedRole === 'manager' ? 'Manager' : 'Staff')),
+      };
+    }
+    return actualUser;
+  }, [actualUser, simulatedRole]);
 
   useEffect(() => {
     // Check active session
@@ -24,10 +42,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
         console.error("Session check error:", error);
         // If the refresh token is invalid, clear the session to prevent loops
         if (error.message.includes('Refresh Token Not Found') || error.message.includes('invalid_refresh_token')) {
-          console.warn("Invalid session detected, signing out...");
-          supabase.auth.signOut();
+          console.warn("Invalid session detected, clearing local storage...");
+          
+          // Thoroughly clear all supabase auth related keys from localStorage
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase.auth.token') || key.startsWith('sb-'))) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(k => localStorage.removeItem(k));
+          
+          // Also try to sign out to clear internal SDK state
+          supabase.auth.signOut().catch(() => {});
         }
         setIsLoading(false);
+        setActualUser(null);
         return;
       }
 
@@ -44,11 +75,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
         console.log("Auth event:", event);
         
         if (event === 'SIGNED_OUT') {
-          setUser(null);
+          setActualUser(null);
           setIsLoading(false);
           fetchingProfileRef.current = false;
-          // Clear any cached data
-          localStorage.removeItem('supabase.auth.token');
+          // Thoroughly clear any cached data
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('supabase.auth.token') || key.startsWith('sb-'))) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(k => localStorage.removeItem(k));
           return;
         }
 
@@ -57,11 +95,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } else if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
           // If we get a token refresh event but no user, it might be an error state
           if (!session) {
-            setUser(null);
+            setActualUser(null);
             setIsLoading(false);
           }
         } else {
-          setUser(null);
+          setActualUser(null);
           setIsLoading(false);
         }
       }
@@ -97,6 +135,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error fetching profile:', error);
+        // If the profile fetch fails with an authentication error, sign out to clear state
+        if (error.code === 'PGRST301' || error.message.includes('JWT') || error.message.includes('invalid_token')) {
+          console.warn("Authentication error detected in profile fetch, signing out...");
+          supabase.auth.signOut().catch(() => {});
+          setActualUser(null);
+          setIsLoading(false);
+          fetchingProfileRef.current = false;
+          return;
+        }
       }
 
       if (data) {
@@ -105,8 +152,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const roleData = jobPosition ? (Array.isArray(jobPosition.roles) ? jobPosition.roles[0] : jobPosition.roles) : null;
         
         const rawRoleName = roleData?.role_name;
+        const positionTitle = jobPosition?.title;
+
         // Normalize role to lowercase and default to 'staff'
-        const roleName = rawRoleName ? rawRoleName.toLowerCase() : 'staff';
+        // Priority: role_name from roles table > position title > 'staff'
+        let roleName = 'staff';
+        if (rawRoleName) {
+          roleName = rawRoleName.toLowerCase();
+        } else if (positionTitle && (
+          positionTitle.toLowerCase() === 'ceo' || 
+          positionTitle.toLowerCase() === 'chairman' ||
+          positionTitle.toLowerCase() === 'bod'
+        )) {
+          roleName = positionTitle.toLowerCase();
+        }
 
         // Extract permissions
         const permissionsList = roleData?.role_permissions || [];
@@ -124,7 +183,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           console.warn('Failed to update avatar cache in localStorage:', e);
         }
 
-        setUser({
+        setActualUser({
           id: userId,
           email: email,
           role: roleName as any, // Use any or Role to avoid TS errors if Role is not fully synced
@@ -154,7 +213,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Fallback if no profile found but user is authenticated
-        setUser({
+        setActualUser({
           id: userId,
           email: email,
           role: 'staff',
@@ -176,8 +235,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const handleSetUser = React.useCallback((newUserOrUpdater: React.SetStateAction<User | null>) => {
+    setActualUser((prev) => {
+      const nextUser = typeof newUserOrUpdater === 'function' ? newUserOrUpdater(prev) : newUserOrUpdater;
+      if (!prev || !nextUser) return nextUser;
+      
+      if (prev.email === 'admin@gmail.com' && simulatedRole) {
+        return {
+          ...nextUser,
+          role: prev.role,
+          department: prev.department,
+          position: prev.position,
+        };
+      }
+      return nextUser;
+    });
+  }, [simulatedRole]);
+
   return (
-    <UserContext.Provider value={{ user, setUser, isAuthenticated: !!user, isLoading, logout }}>
+    <UserContext.Provider value={{ user, setUser: handleSetUser, isAuthenticated: !!user, isLoading, logout, simulatedRole, setSimulatedRole }}>
       {children}
     </UserContext.Provider>
   );

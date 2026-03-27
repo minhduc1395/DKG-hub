@@ -1,9 +1,8 @@
 import "dotenv/config";
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import axios from "axios";
 import cron from "node-cron";
-import { checkTaskDeadlines } from "./src/services/taskNotificationService";
+import { checkTaskDeadlines } from "./src/services/taskNotificationService.ts";
 
 async function startServer() {
   const app = express();
@@ -52,6 +51,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

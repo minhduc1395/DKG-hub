@@ -31,7 +31,7 @@ export const timeOffService = {
       if (error) {
         if (error.code === 'PGRST116') {
           // No balance found, return default
-          return { total: 12, used: 0, remaining: 12 };
+          return { total: 14, used: 0, remaining: 14 };
         }
         throw error;
       }
@@ -39,7 +39,7 @@ export const timeOffService = {
       return data as TimeOffBalance;
     } catch (error) {
       console.error('Error fetching time off balance:', error);
-      return { total: 12, used: 0, remaining: 12 }; // Fallback
+      return { total: 14, used: 0, remaining: 14 }; // Fallback
     }
   },
 
@@ -250,8 +250,6 @@ export const timeOffService = {
 
   async updateRequestStatus(requestId: string, status: string): Promise<void> {
     try {
-      console.log(`[Debug] User ID: ${(await supabase.auth.getUser()).data.user?.id}`);
-      
       // 1. Verify existence and visibility
       const { data: existingRequest, error: fetchError } = await supabase
         .from('time_off_requests')

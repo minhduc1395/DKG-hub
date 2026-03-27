@@ -11,15 +11,15 @@ const getEnv = (key: string) => {
   return undefined;
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('NEXT_PUBLIC_SUPABASE_URL');
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY') || getEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY');
+const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 const supabaseServiceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
 
 const isPlaceholder = (val: string | undefined) => 
   !val || val === 'YOUR_SUPABASE_URL' || val === 'YOUR_SUPABASE_ANON_KEY' || val.includes('MY_');
 
 if (isPlaceholder(supabaseUrl) || (isPlaceholder(supabaseAnonKey) && isPlaceholder(supabaseServiceKey))) {
-  console.error('Supabase configuration is missing or using placeholder values. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or NEXT_PUBLIC_ equivalents) in your environment variables.');
+  console.error('Supabase configuration is missing or using placeholder values. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
 }
 
 // Use service key if available (for server-side operations), otherwise fallback to anon key

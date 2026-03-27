@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, User as UserIcon, CalendarClock, FileText, Settings, LogOut, ClipboardList, Users, CheckSquare, Folder, TrendingUp, Calendar as CalendarIcon, CreditCard, Cpu, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, User as UserIcon, CalendarClock, FileText, Settings, LogOut, ClipboardList, Users, CheckSquare, Folder, TrendingUp, Calendar as CalendarIcon, CreditCard, Cpu, AlertTriangle, DollarSign, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
+import { useUser, SimulatedRole } from '../context/UserContext';
 
-export type Tab = 'dashboard' | 'profile' | 'timeoff' | 'documents' | 'form' | 'finance' | 'settings' | 'employees' | 'attendance' | 'team-status' | 'approvals' | 'calendar' | 'payslip' | 'payslip-approvals' | 'payslip-input' | 'dkg-tool' | 'tasks';
+export type Tab = 'dashboard' | 'profile' | 'timeoff' | 'documents' | 'form' | 'finance' | 'settings' | 'employees' | 'attendance' | 'team-status' | 'approvals' | 'calendar' | 'payslip' | 'payslip-approvals' | 'payslip-input' | 'dkg-tool' | 'tasks' | 'advances' | 'advance-approvals';
 
 interface SidebarProps {
   activeTab: Tab;
@@ -16,19 +17,32 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = false, onClose }: SidebarProps) {
+  const { simulatedRole, setSimulatedRole } = useUser();
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
-  const isAccountantOrCEO = user.role === 'accountant' || 
-                            user.role === 'ceo' || 
-                            user.position?.toLowerCase() === 'ceo' || 
-                            user.position?.toLowerCase() === 'accountant' ||
-                            user.position?.toLowerCase() === 'kế toán';
-  const isManager = user.role === 'manager' || isAccountantOrCEO;
+  const [isManagementExpanded, setIsManagementExpanded] = useState(true);
+  const [isToolExpanded, setIsToolExpanded] = useState(true);
+
+  const isBOD = 
+    user.department?.toUpperCase() === 'BOD' || 
+    user.role?.toLowerCase() === 'ceo' || 
+    user.role?.toLowerCase() === 'chairman' ||
+    user.role?.toLowerCase() === 'bod' ||
+    user.position?.toLowerCase() === 'ceo' ||
+    user.position?.toLowerCase() === 'chairman' ||
+    user.position?.toLowerCase() === 'bod';
+
+  const isAccountant = user.role === 'accountant' || 
+                       user.position?.toLowerCase() === 'accountant' ||
+                       user.position?.toLowerCase() === 'kế toán';
+
+  const isManager = user.role === 'manager' || isBOD || isAccountant;
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
     { id: 'timeoff', label: 'Time Off', icon: CalendarClock },
+    { id: 'advances', label: 'Advances', icon: DollarSign },
     { id: 'payslip', label: 'My Payslips', icon: CreditCard },
     { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'dkg-tool', label: 'DKG Tool', icon: Cpu },
@@ -38,12 +52,32 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
     { id: 'team-status', label: 'Team Status', icon: Users },
     { id: 'approvals', label: 'Leave Approvals', icon: CheckSquare },
     { id: 'payslip-approvals', label: 'Payslip Approvals', icon: ClipboardList },
+    { id: 'advance-approvals', label: 'Advance Approvals', icon: DollarSign },
     { id: 'finance', label: 'Finance', icon: TrendingUp },
   ] as const;
+
+  // Filter manager items based on specific roles
+  const filteredManagerItems = managerItems.filter(item => {
+    if (isBOD) return true;
+    if (isAccountant && ['team-status', 'payslip-approvals', 'advance-approvals'].includes(item.id)) return true;
+    if (user.role === 'manager' && ['team-status', 'approvals'].includes(item.id)) return true;
+    if (item.id === 'team-status') return true; // Base item for all managers
+    return false;
+  });
 
   const toolItems = [
     { id: 'payslip-input', label: 'Payslip Input', icon: FileText },
   ] as const;
+
+  // Auto-expand sections if active tab is inside them
+  useEffect(() => {
+    if (filteredManagerItems.some(item => item.id === activeTab)) {
+      setIsManagementExpanded(true);
+    }
+    if (toolItems.some(item => item.id === activeTab)) {
+      setIsToolExpanded(true);
+    }
+  }, [activeTab]);
 
   const handleTabClick = (tab: Tab) => {
     setActiveTab(tab);
@@ -64,7 +98,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
       {/* Mobile Overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[90] lg:hidden"
           onClick={onClose}
         />
       )}
@@ -93,13 +127,13 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
                 <div className="flex items-center gap-3 w-full mt-4">
                   <button 
                     onClick={() => setIsLogoutConfirmOpen(false)}
-                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-sm transition-colors"
+                    className="flex-1 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-sm transition-all border border-white/5 hover:border-white/10"
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={confirmLogout}
-                    className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors shadow-lg shadow-red-500/20"
+                    className="flex-1 py-3.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-all shadow-[0_0_20px_rgba(239,68,68,0.3)]"
                   >
                     Log Out
                   </button>
@@ -111,14 +145,14 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
       </AnimatePresence>
 
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-[100] w-64 flex-col border-r border-white/5 bg-black/90 backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:h-screen lg:bg-black/40",
+        "fixed inset-y-0 left-0 z-[100] w-64 flex-col border-r border-white/10 bg-black/40 backdrop-blur-2xl transition-transform duration-300 lg:translate-x-0 lg:static lg:flex lg:h-screen",
         isOpen ? "translate-x-0 flex" : "-translate-x-full hidden lg:flex"
       )}>
         <div className="px-4 py-6">
           <button 
             type="button"
             onClick={() => handleTabClick('profile')}
-            className="flex items-center gap-3 px-4 py-3 rounded-[1.25rem] bg-white/5 border border-white/10 shadow-lg shadow-black/20 w-full hover:bg-white/10 transition-colors text-left group cursor-pointer"
+            className="flex items-center gap-3 px-4 py-3 rounded-[1.25rem] bg-white/[0.03] border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] w-full hover:bg-white/10 hover:border-white/20 transition-all text-left group cursor-pointer"
           >
             <img 
               src={user.avatar} 
@@ -133,7 +167,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
           </button>
         </div>
         
-        <nav className="flex flex-1 flex-col gap-2 px-4 overflow-y-auto pt-2">
+        <nav className="flex flex-1 flex-col gap-2 px-4 overflow-y-auto pt-2 pb-4 min-h-0 custom-scrollbar">
           {navItems.filter(item => !(isManager && item.id === 'timeoff')).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -142,67 +176,113 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
                 key={item.id}
                 onClick={() => handleTabClick(item.id as Tab)}
                 className={cn(
-                  "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200",
+                  "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 shrink-0",
                   isActive 
-                    ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
-                    : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
+                    ? "bg-white/10 text-white border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
+                    : "text-slate-400 hover:bg-white/10 hover:text-white hover:border-white/20 border border-transparent"
                 )}
               >
-                <Icon className={cn("w-5 h-5", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
-                <span className="text-sm font-semibold">{item.label}</span>
+                <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
+                <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
               </button>
             );
           })}
 
           {isManager && (
             <>
-              <div className="px-4 py-2 mt-4">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Management Hub</span>
-              </div>
-              {managerItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id as Tab)}
-                    className={cn(
-                      "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200",
-                      isActive 
-                        ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
-                        : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
-                    )}
+              <button 
+                onClick={() => setIsManagementExpanded(!isManagementExpanded)}
+                className="flex items-center justify-between px-4 py-2 mt-4 w-full group shrink-0"
+              >
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-slate-300 transition-colors">Management Hub</span>
+                {isManagementExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+                )}
+              </button>
+              
+              <AnimatePresence initial={false}>
+                {isManagementExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden shrink-0"
                   >
-                    <Icon className={cn("w-5 h-5", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
-                    <span className="text-sm font-semibold">{item.label}</span>
-                  </button>
-                );
-              })}
+                    <div className="flex flex-col gap-1 pb-1">
+                      {filteredManagerItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => handleTabClick(item.id as Tab)}
+                            className={cn(
+                              "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 shrink-0",
+                              isActive 
+                                ? "bg-white/10 text-white border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
+                                : "text-slate-400 hover:bg-white/10 hover:text-white hover:border-white/20 border border-transparent"
+                            )}
+                          >
+                            <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
+                            <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {isAccountantOrCEO && (
+              {(isAccountant || isBOD) && (
                 <>
-                  <div className="px-4 py-2 mt-4">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tool</span>
-                  </div>
-                  {toolItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleTabClick(item.id as Tab)}
-                        className={cn(
-                          "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200",
-                          isActive 
-                            ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
-                            : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
-                        )}
+                  <button 
+                    onClick={() => setIsToolExpanded(!isToolExpanded)}
+                    className="flex items-center justify-between px-4 py-2 mt-4 w-full group shrink-0"
+                  >
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-slate-300 transition-colors">Tool</span>
+                    {isToolExpanded ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+                    )}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {isToolExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="overflow-hidden shrink-0"
                       >
-                        <Icon className={cn("w-5 h-5", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
-                        <span className="text-sm font-semibold">{item.label}</span>
-                      </button>
-                    );
-                  })}
+                        <div className="flex flex-col gap-1 pb-1">
+                          {toolItems.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = activeTab === item.id;
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => handleTabClick(item.id as Tab)}
+                                className={cn(
+                                  "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 shrink-0",
+                                  isActive 
+                                    ? "bg-white/10 text-white border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
+                                    : "text-slate-400 hover:bg-white/10 hover:text-white hover:border-white/20 border border-transparent"
+                                )}
+                              >
+                                <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />
+                                <span className="text-sm font-semibold whitespace-nowrap">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </>
               )}
             </>
@@ -210,13 +290,29 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
         </nav>
 
         <div className="flex flex-col gap-1 p-4 border-t border-white/5">
+          {user.email === 'admin@gmail.com' && (
+            <div className="mb-2 p-3 rounded-xl bg-white/5 border border-white/10">
+              <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Simulate Role</p>
+              <select
+                value={simulatedRole || ''}
+                onChange={(e) => setSimulatedRole(e.target.value ? (e.target.value as SimulatedRole) : null)}
+                className="w-full bg-slate-800/50 border border-white/10 rounded-lg text-sm text-white px-3 py-2 outline-none focus:border-blue-500/50 transition-colors"
+              >
+                <option value="">CEO (Default)</option>
+                <option value="bod">BOD</option>
+                <option value="manager">Manager</option>
+                <option value="accountant">Accountant</option>
+                <option value="staff">Staff</option>
+              </select>
+            </div>
+          )}
           <button
             onClick={() => handleTabClick('settings')}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 w-full",
               activeTab === 'settings'
-                ? "bg-blue-500/15 text-blue-300 border border-blue-500/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
-                : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
+                ? "bg-white/10 text-white border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]" 
+                : "text-slate-400 hover:bg-white/10 hover:text-white hover:border-white/20 border border-transparent"
             )}
           >
             <Settings className={cn("w-5 h-5", activeTab === 'settings' ? "text-blue-300" : "text-slate-400 group-hover:text-white")} />

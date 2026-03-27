@@ -262,33 +262,31 @@ export function Login() {
             )}
             
             <div className="space-y-3 md:space-y-5">
-              <div className="relative group">
-                <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
+              <div className="relative">
+                <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors z-20">
                   <User className="w-4 h-4 md:w-5 md:h-5" />
                 </div>
-                <div className="absolute inset-0 bg-white/[0.03] rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
                 <input
                   type="email"
                   placeholder="Email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300"
                   required
                 />
               </div>
               
               {view === 'login' && (
-                <div className="relative group">
-                  <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-blue-200/50 group-focus-within:text-blue-300 transition-colors z-20">
+                <div className="relative">
+                  <div className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-slate-500 transition-colors z-20">
                     <Lock className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
-                  <div className="absolute inset-0 bg-white/[0.03] rounded-xl md:rounded-2xl border border-white/10 backdrop-blur-md transition-all duration-300 group-focus-within:bg-white/[0.07] group-focus-within:border-white/20 group-focus-within:shadow-[0_0_20px_rgba(59,130,246,0.15)] pointer-events-none" />
                   <input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-transparent rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-blue-200/20 focus:outline-none relative z-10 transition-all duration-300"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl md:rounded-2xl py-3 md:py-4 pl-10 md:pl-14 pr-4 text-sm md:text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all duration-300"
                     required
                   />
                 </div>
@@ -312,31 +310,16 @@ export function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full relative group overflow-hidden rounded-xl md:rounded-2xl transition-all duration-500 transform hover:-translate-y-1 hover:shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4),_inset_0_0_20px_rgba(255,255,255,0.05)] active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              className="w-full flex items-center justify-center gap-2 py-3 md:py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-xl md:rounded-2xl font-bold tracking-wide text-base md:text-lg transition-all disabled:opacity-70 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
             >
-              {/* Main Glass Body - Natural & Seamless */}
-              <div className="absolute inset-0 bg-gradient-to-b from-white/[0.05] to-transparent backdrop-blur-md border border-white/10 group-hover:border-white/20 transition-all duration-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] rounded-xl md:rounded-2xl" />
-              
-              {/* Top Gloss - Softer & Natural */}
-              <div className="absolute top-0 inset-x-0 h-[40%] bg-gradient-to-b from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-xl md:rounded-t-2xl" />
-              
-              {/* Bottom Rim - Softer */}
-              <div className="absolute bottom-0 inset-x-0 h-[30%] bg-gradient-to-t from-white/10 to-transparent opacity-50 rounded-b-xl md:rounded-b-2xl" />
-
-              {/* Content */}
-              <div className="relative z-10 py-3 md:py-4 flex items-center justify-center gap-2 text-white font-bold tracking-wide text-base md:text-lg drop-shadow-md">
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
-                ) : (
-                  <>
-                    {view === 'login' ? 'LOGIN' : 'SEND RESET LINK'}
-                    <ArrowRight className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 transition-transform duration-300" />
-                  </>
-                )}
-              </div>
-              
-              {/* Sweep Effect - Smoother & Contained */}
-              <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out skew-x-[-20deg] pointer-events-none" />
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+              ) : (
+                <>
+                  {view === 'login' ? 'LOGIN' : 'SEND RESET LINK'}
+                  <ArrowRight className="w-5 h-5 md:w-6 md:h-6" />
+                </>
+              )}
             </button>
           </form>
         </div>
