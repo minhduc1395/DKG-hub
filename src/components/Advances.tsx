@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Search, Filter, FileText, CheckCircle, XCircle, Clock, ArrowRight, DollarSign, RefreshCw, X, Trash2, Send, AlertCircle, Loader2, Edit3, CheckSquare, Check, Copy, ChevronLeft } from 'lucide-react';
+import { Plus, Search, Filter, FileText, CheckCircle, XCircle, Clock, ArrowRight, DollarSign, RefreshCw, X, Trash2, Send, AlertCircle, Loader2, Edit3, CheckSquare, Check, Copy, ChevronLeft, Download } from 'lucide-react';
 import { DatePicker } from './DatePicker';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import { cn, formatDate } from '../lib/utils';
+import { exportAdvanceForm, exportClearanceForm } from '../lib/exportExcel';
 
 export interface AdvanceItem {
   description: string;
@@ -1151,6 +1152,7 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
   const [actionNote, setActionNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{action: string, newStatus: string} | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   if (!request) return null;
 
@@ -1202,6 +1204,28 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
     ? request.total_amount - request.related_advance.total_amount 
     : 0;
 
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const userProfile = {
+        full_name: request.requester?.full_name || 'Unknown User',
+        department: request.requester?.department || 'General'
+      };
+
+      if (request.type === 'Advance') {
+        await exportAdvanceForm(request, userProfile);
+      } else if (request.type === 'Clearance') {
+        const originalAmount = request.related_advance?.total_amount || 0;
+        await exportClearanceForm(request, userProfile, originalAmount);
+      }
+    } catch (error) {
+      console.error("Export failed:", error);
+      onError("Có lỗi xảy ra khi xuất file Excel. Vui lòng kiểm tra lại file mẫu trong thư mục public.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -1234,9 +1258,21 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
                   </span>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-white/5 text-slate-400 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-4">
+                {(request.status === 'Approved' || request.status === 'Completed') && (
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={isExporting}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-xl font-bold transition-all border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    <span className="hidden sm:inline">Tải biểu mẫu</span>
+                  </button>
+                )}
+                <button onClick={onClose} className="p-2 rounded-full hover:bg-white/5 text-slate-400 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
