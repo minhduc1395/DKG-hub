@@ -606,7 +606,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Leave Type</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Leave Type <span className="text-rose-500">*</span></label>
                     <div className="relative group">
                       <select 
                         value={formData.type}
@@ -623,7 +623,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Date</label>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Date <span className="text-rose-500">*</span></label>
                       <DatePicker 
                         value={formData.startDate} 
                         onChange={(date) => setFormData({...formData, startDate: date})} 
@@ -633,7 +633,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                     </div>
                     {!formData.isHalfDay && (
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date</label>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date <span className="text-rose-500">*</span></label>
                         <DatePicker 
                           value={formData.endDate} 
                           onChange={(date) => setFormData({...formData, endDate: date})} 
@@ -686,7 +686,7 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reason</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reason <span className="text-rose-500">*</span></label>
                     <div className="relative group">
                       <textarea 
                         required

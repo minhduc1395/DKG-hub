@@ -2841,11 +2841,11 @@ export function Tasks({ user }: TasksProps) {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Task Title</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase">Task Title <span className="text-rose-500">*</span></label>
                   <input required type="text" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" placeholder="e.g. Prepare weekly report" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Description</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase">Description <span className="text-rose-500">*</span></label>
                   <textarea required value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-24 resize-none" placeholder="Task details..." />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -2909,7 +2909,7 @@ export function Tasks({ user }: TasksProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Feedback / Reason</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase">Feedback / Reason <span className="text-rose-500">*</span></label>
                   <textarea required value={feedbackMessage} onChange={e => setFeedbackMessage(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all h-24 resize-none" placeholder="Explain why you need an extension or provide feedback..." />
                 </div>
                 

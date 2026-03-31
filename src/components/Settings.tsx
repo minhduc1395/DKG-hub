@@ -102,7 +102,7 @@ export function Settings() {
           <form onSubmit={handleSubmit} className="max-w-md space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Current Password
+                Current Password <span className="text-rose-500">*</span>
               </label>
               <input
                 type="password"
@@ -115,7 +115,7 @@ export function Settings() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                New Password
+                New Password <span className="text-rose-500">*</span>
               </label>
               <input
                 type="password"
@@ -128,7 +128,7 @@ export function Settings() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Confirm New Password
+                Confirm New Password <span className="text-rose-500">*</span>
               </label>
               <input
                 type="password"

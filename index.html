@@ -5,6 +5,25 @@
     <link rel="icon" type="image/png" href="https://i.postimg.cc/nr1gWnR4/Untitled_design_(3).png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DKG HUB</title>
+    <script>
+      // Force unregister all service workers to fix ERR_FAILED issues
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          if (registrations && registrations.length > 0) {
+            var reloaded = false;
+            registrations.forEach(function(registration) {
+              registration.unregister().then(function(success) {
+                if (success && !reloaded) {
+                  reloaded = true;
+                  // Reload to bypass the intercepted cache of the old SW
+                  window.location.reload();
+                }
+              });
+            });
+          }
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

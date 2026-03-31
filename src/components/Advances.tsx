@@ -930,7 +930,7 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
                 
                 {type === 'Clearance' && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300">Select Approved Advance</label>
+                    <label className="text-sm font-medium text-slate-300">Select Approved Advance <span className="text-rose-500">*</span></label>
                     <select
                       required
                       value={relatedAdvanceId}
@@ -957,7 +957,7 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-300">
-                      {type === 'Advance' ? 'Advance Date' : 'Clearance Date'} (Ngày {type === 'Advance' ? 'tạm ứng' : 'hoàn ứng'})
+                      {type === 'Advance' ? 'Advance Date' : 'Clearance Date'} (Ngày {type === 'Advance' ? 'tạm ứng' : 'hoàn ứng'}) <span className="text-rose-500">*</span>
                     </label>
                     <DatePicker
                       value={requestDate}
@@ -1020,8 +1020,8 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-white/5 border-b border-white/10">
-                          <th className="p-3 text-xs font-semibold text-slate-400">Description</th>
-                          <th className="p-3 text-xs font-semibold text-slate-400 w-48">Amount (VND)</th>
+                          <th className="p-3 text-xs font-semibold text-slate-400">Description <span className="text-rose-500">*</span></th>
+                          <th className="p-3 text-xs font-semibold text-slate-400 w-48">Amount (VND) <span className="text-rose-500">*</span></th>
                           <th className="p-3 text-xs font-semibold text-slate-400">Note</th>
                           <th className="p-3 w-12"></th>
                         </tr>
@@ -1063,7 +1063,7 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
                             <td className="p-2">
                               <input
                                 type="text"
-                                placeholder="Optional note"
+                                placeholder="example: Korean Spotlight show/ Capital"
                                 value={item.note}
                                 onChange={(e) => {
                                   const newItems = [...items];
@@ -1438,7 +1438,7 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
                 {isApprovalView && ((isAccountant && request.status === 'Pending_Accountant') || (isBOD && request.status === 'Pending_BOD')) ? (
                   <input
                     type="text"
-                    placeholder="Add a note (required for Reject/Edit)..."
+                    placeholder="Add a note (required for Reject/Edit) *..."
                     value={actionNote}
                     onChange={(e) => setActionNote(e.target.value)}
                     className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"

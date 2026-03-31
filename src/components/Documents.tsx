@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Filter, FileText, FileImage, FileCode, Download, Eye, MoreVertical, Folder, Clock, Upload, CheckSquare, X, CheckCircle, XCircle, Book, FileSignature, AlertCircle, File as FileIcon, Loader2, RotateCcw, RefreshCw, Trash2 } from 'lucide-react';
 import { Document, DocumentWithHistory } from '../types';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, normalizeFileName } from '../lib/utils';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -248,7 +248,7 @@ export function Documents() {
     try {
       // 1. Upload file lên Supabase Storage (Bucket: 'documents')
       const fileExt = selectedFile?.name.split('.').pop()?.toLowerCase() || '';
-      const fileName = `${Date.now()}_${selectedFile?.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const fileName = `${Date.now()}_${normalizeFileName(selectedFile?.name || '')}`;
       
       const { error: uploadError } = await supabase.storage
         .from('documents')
@@ -604,7 +604,7 @@ export function Documents() {
               </div>
               <form onSubmit={handleUploadSubmit} className="p-6 space-y-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase">File Upload</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase">File Upload <span className="text-rose-500">*</span></label>
                   <div className="relative group">
                     <input 
                       type="file" 
@@ -624,7 +624,7 @@ export function Documents() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase">Document Title</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase">Document Title <span className="text-rose-500">*</span></label>
                   <input required type="text" value={uploadForm.title} onChange={e => setUploadForm({...uploadForm, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" placeholder="e.g. Q4 Marketing Plan" />
                 </div>
 
