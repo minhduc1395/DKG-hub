@@ -29,25 +29,34 @@ export const timeOffService = {
   async fetchBalance(userId: string): Promise<TimeOffBalance> {
     try {
       const currentYear = new Date().getFullYear();
-      const { data, error } = await supabase
+      
+      // 1. Chỉ lấy tổng số ngày phép được cấp (total) từ bảng time_off_balances
+      const { data: balanceData, error } = await supabase
         .from('time_off_balances')
-        .select('total, used, remaining')
+        .select('total')
         .eq('employee_id', userId)
         .eq('year', currentYear)
-        .single();
+        .maybeSingle();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No balance found, return default
-          return { total: 14, used: 0, remaining: 14 };
-        }
-        throw error;
+        console.warn('Lỗi khi fetch total balance, dùng mặc định:', error);
       }
 
-      return data as TimeOffBalance;
+      const total = balanceData?.total ?? 14; // Mặc định 14 ngày nếu chưa setup
+
+      // 2. Tính số ngày ĐÃ SỬ DỤNG (used) trực tiếp bằng RPC chuẩn xác 100%
+      const ytdMap = await this.getTeamApprovedDaysOffYTD([userId]);
+      const used = ytdMap[userId] || 0;
+
+      // 3. Số ngày CÒN LẠI (remaining) = Tổng - Đã dùng
+      const remaining = Math.max(0, total - used);
+
+      return { total, used, remaining };
+      
     } catch (error) {
       console.error('Error fetching time off balance:', error);
-      return { total: 14, used: 0, remaining: 14 }; // Fallback
+      // Fallback an toàn nếu có lỗi
+      return { total: 14, used: 0, remaining: 14 }; 
     }
   },
 
