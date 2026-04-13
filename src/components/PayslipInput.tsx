@@ -4,6 +4,7 @@ import { Upload, FileText, Plus, Save, AlertCircle, CheckCircle2, X } from 'luci
 import Papa from 'papaparse';
 import { payslipService } from '../services/payslipService';
 import { supabase } from '../lib/supabaseClient';
+import { notifyAccountants, notifyBOD } from '../services/notificationService';
 
 interface PayslipInputProps {
   onSuccess?: () => void;
@@ -210,6 +211,23 @@ export function PayslipInput({ onSuccess }: PayslipInputProps) {
       
       if (result.success) {
         setSuccess('Payslips saved successfully!');
+        
+        // Notify Approvers (Accountants and BOD)
+        const monthYear = finalData[0]?.month + '/' + finalData[0]?.year;
+        const count = finalData.length;
+        
+        await notifyAccountants(
+          'New Payslips Uploaded',
+          `${count} new payslips for ${monthYear} have been uploaded and are pending approval.`,
+          'payslip'
+        );
+        
+        await notifyBOD(
+          'New Payslips Uploaded',
+          `${count} new payslips for ${monthYear} have been uploaded and are pending approval.`,
+          'payslip'
+        );
+
         setParsedData([]);
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';

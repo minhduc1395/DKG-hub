@@ -1,14 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-
-const env = fs.readFileSync('.env', 'utf8');
-const supabaseUrl = env.match(/VITE_SUPABASE_URL=(.*)/)[1];
-const supabaseKey = env.match(/VITE_SUPABASE_ANON_KEY=(.*)/)[1];
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from './src/lib/supabaseClient';
 
 async function check() {
-  const { data, error } = await supabase.from('payslips').select('*').limit(1);
-  console.log(JSON.stringify(data, null, 2));
+  const { data, error } = await supabase.from('tasks').select('*').limit(1);
+  if (error) {
+    console.error('Error fetching tasks:', JSON.stringify(error, null, 2));
+  } else {
+    console.log('Task data:', JSON.stringify(data, null, 2));
+  }
 }
 check();

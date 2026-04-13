@@ -26,6 +26,7 @@ import { PayslipDetail, PayslipData } from './PayslipDetail';
 import { PayslipHistory } from './PayslipHistory';
 import { payslipService, PayslipRequest } from '../services/payslipService';
 import { useUser } from '../context/UserContext';
+import { sendNotification } from '../services/notificationService';
 
 interface PayslipApprovalsProps {
   user: User;
@@ -83,6 +84,14 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
       // Optimistic update or refetch
       const request = pendingRequests.find(r => r.id === id);
       if (request) {
+        // Notify Employee only on approval
+        await sendNotification(
+          request.employeeId,
+          'Payslip Approved',
+          `Your payslip for ${request.month}/${request.year} has been approved.`,
+          'payslip'
+        );
+
         const updatedRequest: PayslipRequest = {
           ...request,
           status: 'approved',
@@ -97,7 +106,21 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
 
   const approveSelected = async () => {
     // Process all approvals
-    const promises = selectedIds.map(id => payslipService.approvePayslip(id));
+    const promises = selectedIds.map(async (id) => {
+      const success = await payslipService.approvePayslip(id);
+      if (success) {
+        const request = pendingRequests.find(r => r.id === id);
+        if (request) {
+          await sendNotification(
+            request.employeeId,
+            'Payslip Approved',
+            `Your payslip for ${request.month}/${request.year} has been approved.`,
+            'payslip'
+          );
+        }
+      }
+      return success;
+    });
     await Promise.all(promises);
     
     // Refresh data to be safe
@@ -384,7 +407,10 @@ export function PayslipApprovals({ user: currentUser }: PayslipApprovalsProps) {
                             <button 
                               onClick={async () => {
                                 const success = await payslipService.rejectPayslip(request.id);
-                                if (success) fetchData();
+                                if (success) {
+                                  // No notification to employee on rejection as per user request
+                                  fetchData();
+                                }
                               }}
                               className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors" 
                               title="Reject"

@@ -9,6 +9,7 @@ import {
   AlertCircle,
   MessageSquare,
   Calendar,
+  Bell,
   X,
   Send,
   CheckSquare,
@@ -37,6 +38,7 @@ export interface Task {
   status: 'Todo' | 'In Progress' | 'Review' | 'Done';
   priority: 'Low' | 'Medium' | 'High';
   deadline: string;
+  reminderAt?: string;
   createdAt: string;
   feedback?: {
     message: string;
@@ -59,6 +61,29 @@ export interface Activity {
 interface TasksProps {
   user: User;
 }
+
+const LinkifiedText = ({ text, className }: { text: string; className?: string }) => {
+  if (!text) return null;
+  
+  return (
+    <span className={className}>
+      {text.split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
+        part.match(/https?:\/\/[^\s]+/) ? (
+          <a 
+            key={i} 
+            href={part} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-blue-400 hover:underline relative z-10 hover:text-blue-300 font-bold pointer-events-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            LINK HERE
+          </a>
+        ) : part
+      )}
+    </span>
+  );
+};
 
 export function Tasks({ user }: TasksProps) {
   console.log('Tasks component rendering');
@@ -88,6 +113,7 @@ export function Tasks({ user }: TasksProps) {
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [activityToDelete, setActivityToDelete] = useState<{taskId: string, activityId: string} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [newTask, setNewTask] = useState({
@@ -95,7 +121,8 @@ export function Tasks({ user }: TasksProps) {
     description: '',
     assigneeId: user.id,
     priority: 'Medium' as Task['priority'],
-    deadline: ''
+    deadline: '',
+    reminderAt: ''
   });
 
   useEffect(() => {
@@ -271,6 +298,7 @@ export function Tasks({ user }: TasksProps) {
           status,
           priority,
           deadline,
+          reminder_at,
           feedback_message,
           feedback_status,
           assignee:assignee_id(full_name, avatar_url),
@@ -295,7 +323,13 @@ export function Tasks({ user }: TasksProps) {
 
       const { data: tasksData, error: tasksError } = await query;
 
-      if (tasksError) throw tasksError;
+      if (tasksError) {
+        console.error('Error fetching tasks:', JSON.stringify(tasksError, null, 2));
+        if (tasksError.code === '42703') {
+          console.error('HINT: The "reminder_at" column might be missing from the "tasks" table. Please add it using: ALTER TABLE tasks ADD COLUMN reminder_at TIMESTAMPTZ;');
+        }
+        throw tasksError;
+      }
 
       const formattedTasks: Task[] = (tasksData || []).map((t: any) => {
         // Map task_assignees to a clean array
@@ -338,6 +372,7 @@ export function Tasks({ user }: TasksProps) {
           status: t.status as Task['status'],
           priority: t.priority as Task['priority'],
           deadline: t.deadline,
+          reminderAt: t.reminder_at || undefined,
           createdAt: t.created_at || new Date().toISOString(),
           feedback: t.feedback_message ? {
             message: t.feedback_message,
@@ -388,13 +423,14 @@ export function Tasks({ user }: TasksProps) {
       status: 'Todo',
       priority: newTask.priority,
       deadline: newTask.deadline,
+      reminderAt: newTask.reminderAt || undefined,
       createdAt: new Date().toISOString()
     };
     
     setTasks([optimisticTask, ...tasks]);
     setOriginalTasks(prev => ({ ...prev, [tempId]: optimisticTask }));
     setIsNewTaskOpen(false);
-    setNewTask({ title: '', description: '', assigneeId: user.id, priority: 'Medium', deadline: '' });
+    setNewTask({ title: '', description: '', assigneeId: user.id, priority: 'Medium', deadline: '', reminderAt: '' });
 
     try {
       const { data, error } = await supabase
@@ -406,12 +442,19 @@ export function Tasks({ user }: TasksProps) {
           assigner_id: optimisticTask.assignerId,
           status: optimisticTask.status,
           priority: optimisticTask.priority,
-          deadline: optimisticTask.deadline
+          deadline: optimisticTask.deadline,
+          reminder_at: optimisticTask.reminderAt || null
         }])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating task:', JSON.stringify(error, null, 2));
+        if (error.code === '42703') {
+          console.error('HINT: The "reminder_at" column might be missing from the "tasks" table. Please add it using: ALTER TABLE tasks ADD COLUMN reminder_at TIMESTAMPTZ;');
+        }
+        throw error;
+      }
 
       // Update temp ID with real ID
       setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id: data.id } : t));
@@ -528,13 +571,20 @@ export function Tasks({ user }: TasksProps) {
           status: task.status,
           priority: task.priority,
           deadline: task.deadline,
+          reminder_at: task.reminderAt || null,
           assignee_id: task.assigneeId,
           feedback_message: task.feedback?.message || null,
           feedback_status: task.feedback?.status || null
         })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error saving task:', JSON.stringify(error, null, 2));
+        if (error.code === '42703') {
+          console.error('HINT: The "reminder_at" column might be missing from the "tasks" table. Please add it using: ALTER TABLE tasks ADD COLUMN reminder_at TIMESTAMPTZ;');
+        }
+        throw error;
+      }
 
       // Log activity
       await supabase.from('task_activities').insert({
@@ -640,6 +690,7 @@ export function Tasks({ user }: TasksProps) {
   };
 
   const handleDeleteActivity = async (activityId: string, taskId: string) => {
+    setIsDeleting(true);
     try {
       const { error } = await supabase
         .from('task_activities')
@@ -657,9 +708,12 @@ export function Tasks({ user }: TasksProps) {
       });
 
       fetchActivities(taskId);
+      setActivityToDelete(null);
     } catch (err) {
       console.error('Error deleting activity:', err);
       setError('Failed to delete activity');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -872,6 +926,25 @@ export function Tasks({ user }: TasksProps) {
       } catch (err) {
         console.error('Error requesting deadline change:', err);
         setError('Failed to request deadline change.');
+      }
+    }
+  };
+
+  const handleReminderChange = async (task: Task, newReminder: string) => {
+    updateTaskField(task.id, 'reminderAt', newReminder);
+    
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ reminder_at: newReminder || null })
+        .eq('id', task.id);
+      if (error) throw error;
+    } catch (err) {
+      console.error('Error updating reminder:', err);
+      // Revert on error
+      const originalTask = originalTasks[task.id];
+      if (originalTask) {
+        setTasks(prev => prev.map(t => t.id === task.id ? originalTask : t));
       }
     }
   };
@@ -1154,20 +1227,7 @@ export function Tasks({ user }: TasksProps) {
                             expandedTaskId === task.id ? "" : "line-clamp-2 lg:line-clamp-1 max-h-[3em] lg:max-h-[1.5em] overflow-hidden"
                           )}
                         >
-                          {(task.description || '').split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
-                            part.match(/https?:\/\/[^\s]+/) ? (
-                              <a 
-                                key={i} 
-                                href={part} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-blue-400 hover:underline relative z-10 hover:text-blue-300 font-bold pointer-events-auto"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                LINK
-                              </a>
-                            ) : part
-                          )}
+                          <LinkifiedText text={task.description || ''} />
                         </p>
                         
                         {/* Feedback Status (Moved here) */}
@@ -1185,7 +1245,7 @@ export function Tasks({ user }: TasksProps) {
                             <span className="uppercase tracking-wider opacity-90">
                               {task.feedback.status === 'Pending' ? 'Request:' : `Request ${task.feedback.status}:`}
                               <span className="ml-1 normal-case opacity-70 truncate max-w-[200px] inline-block align-bottom">
-                                {typeof task.feedback === 'string' ? task.feedback : task.feedback.message}
+                                <LinkifiedText text={typeof task.feedback === 'string' ? task.feedback : task.feedback.message} />
                               </span>
                             </span>
                           </div>
@@ -1599,19 +1659,46 @@ export function Tasks({ user }: TasksProps) {
                         <div className="mb-6">
                           <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Description</h4>
                           <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
-                            {(task.description || 'No description provided.').split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
-                              part.match(/https?:\/\/[^\s]+/) ? (
-                                <a 
-                                  key={i} 
-                                  href={part} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-blue-400 hover:underline relative z-10 hover:text-blue-300 font-bold"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  LINK
-                                </a>
-                              ) : part
+                            <LinkifiedText text={task.description || 'No description provided.'} />
+                          </div>
+                        </div>
+
+                        <div className="mb-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Bell className="w-3 h-3 text-slate-500" />
+                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Reminder</h4>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1 max-w-[200px]">
+                              <DatePicker 
+                                value={task.reminderAt ? task.reminderAt.split('T')[0] : ''} 
+                                onChange={date => {
+                                  const time = task.reminderAt ? task.reminderAt.split('T')[1] || '09:00:00' : '09:00:00';
+                                  handleReminderChange(task, `${date}T${time}`);
+                                }} 
+                                placeholder="Set reminder date..."
+                                inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" 
+                              />
+                            </div>
+                            <div className="w-32">
+                              <input 
+                                type="time" 
+                                value={task.reminderAt ? task.reminderAt.split('T')[1]?.substring(0, 5) || '09:00' : ''} 
+                                onChange={e => {
+                                  const date = task.reminderAt ? task.reminderAt.split('T')[0] || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                                  handleReminderChange(task, `${date}T${e.target.value}:00`);
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
+                              />
+                            </div>
+                            {task.reminderAt && (
+                              <button 
+                                onClick={() => handleReminderChange(task, '')}
+                                className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                title="Clear Reminder"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1647,7 +1734,7 @@ export function Tasks({ user }: TasksProps) {
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteActivity(activity.id, task.id);
+                                        setActivityToDelete({taskId: task.id, activityId: activity.id});
                                       }}
                                       className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-rose-400 transition-colors"
                                     >
@@ -1689,7 +1776,7 @@ export function Tasks({ user }: TasksProps) {
                                 </div>
                               ) : (
                                 <div className="text-sm text-slate-300 whitespace-pre-wrap break-words pl-8">
-                                  {activity.content}
+                                  <LinkifiedText text={activity.content} />
                                 </div>
                               )}
                             </div>
@@ -1838,7 +1925,7 @@ export function Tasks({ user }: TasksProps) {
                                   {activity.type === 'update' ? (
                                     <span className="italic text-slate-400">Posted an update</span>
                                   ) : (
-                                    activity.content
+                                    <LinkifiedText text={activity.content} />
                                   )}
                                 </div>
                                 <span className="text-[9px] text-slate-600 pl-1">{new Date(activity.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -1862,7 +1949,7 @@ export function Tasks({ user }: TasksProps) {
                                   <span className="text-[10px] text-slate-500">Legacy Feedback</span>
                                 </div>
                                 <div className="text-xs text-slate-400 bg-white/5 p-2 rounded-lg rounded-tl-none">
-                                  {typeof task.feedback === 'string' ? task.feedback : task.feedback.message || 'Updated task status'}
+                                  <LinkifiedText text={typeof task.feedback === 'string' ? task.feedback : task.feedback.message || 'Updated task status'} />
                                 </div>
                               </div>
                             </div>
@@ -2114,20 +2201,7 @@ export function Tasks({ user }: TasksProps) {
                                       expandedTaskId === task.id ? "" : "line-clamp-2 lg:line-clamp-1 max-h-[3em] lg:max-h-[1.5em] overflow-hidden"
                                     )}
                                   >
-                                    {(task.description || '').split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
-                                      part.match(/https?:\/\/[^\s]+/) ? (
-                                        <a 
-                                          key={i} 
-                                          href={part} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer" 
-                                          className="text-blue-400 hover:underline relative z-10 hover:text-blue-300 font-bold pointer-events-auto"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          LINK
-                                        </a>
-                                      ) : part
-                                    )}
+                                    <LinkifiedText text={task.description || ''} />
                                   </p>
                                   
                                   {/* Feedback Status (Moved here) */}
@@ -2145,7 +2219,7 @@ export function Tasks({ user }: TasksProps) {
                                       <span className="uppercase tracking-wider opacity-90">
                                         {task.feedback.status === 'Pending' ? 'Request:' : `Request ${task.feedback.status}:`}
                                         <span className="ml-1 normal-case opacity-70 truncate max-w-[200px] inline-block align-bottom">
-                                          {typeof task.feedback === 'string' ? task.feedback : task.feedback.message}
+                                          <LinkifiedText text={typeof task.feedback === 'string' ? task.feedback : task.feedback.message} />
                                         </span>
                                       </span>
                                     </div>
@@ -2545,20 +2619,7 @@ export function Tasks({ user }: TasksProps) {
                                   <div className="mb-6">
                                     <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Description</h4>
                                     <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap break-words">
-                                      {(task.description || 'No description provided.').split(/(https?:\/\/[^\s]+)/g).map((part, i) => 
-                                        part.match(/https?:\/\/[^\s]+/) ? (
-                                          <a 
-                                            key={i} 
-                                            href={part} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer" 
-                                            className="text-blue-400 hover:underline relative z-10 hover:text-blue-300 font-bold"
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            LINK
-                                          </a>
-                                        ) : part
-                                      )}
+                                      <LinkifiedText text={task.description || 'No description provided.'} />
                                     </div>
                                   </div>
 
@@ -2593,7 +2654,7 @@ export function Tasks({ user }: TasksProps) {
                                               <button 
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  handleDeleteActivity(activity.id, task.id);
+                                                  setActivityToDelete({taskId: task.id, activityId: activity.id});
                                                 }}
                                                 className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
                                               >
@@ -2633,7 +2694,7 @@ export function Tasks({ user }: TasksProps) {
                                           </div>
                                         ) : (
                                           <div className="text-sm text-slate-300 whitespace-pre-wrap break-words pl-8">
-                                            {activity.content}
+                                            <LinkifiedText text={activity.content} />
                                           </div>
                                         )}
                                       </div>
@@ -2730,7 +2791,7 @@ export function Tasks({ user }: TasksProps) {
                                             {activity.type === 'update' ? (
                                               <span className="italic text-slate-400">Posted an update</span>
                                             ) : (
-                                              activity.content
+                                              <LinkifiedText text={activity.content} />
                                             )}
                                           </div>
                                           <span className="text-[9px] text-slate-600 pl-1">{new Date(activity.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -2754,7 +2815,7 @@ export function Tasks({ user }: TasksProps) {
                                             <span className="text-[10px] text-slate-500">Legacy Feedback</span>
                                           </div>
                                           <div className="text-xs text-slate-400 bg-white/5 p-2 rounded-lg rounded-tl-none">
-                                            {typeof task.feedback === 'string' ? task.feedback : task.feedback.message || 'Updated task status'}
+                                            <LinkifiedText text={typeof task.feedback === 'string' ? task.feedback : task.feedback.message || 'Updated task status'} />
                                           </div>
                                         </div>
                                       </div>
@@ -2867,6 +2928,33 @@ export function Tasks({ user }: TasksProps) {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase">Set Reminder (Optional)</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <DatePicker 
+                        value={newTask.reminderAt ? newTask.reminderAt.split('T')[0] : ''} 
+                        onChange={date => {
+                          const time = newTask.reminderAt ? newTask.reminderAt.split('T')[1] || '09:00:00' : '09:00:00';
+                          setNewTask({...newTask, reminderAt: `${date}T${time}`});
+                        }} 
+                        placeholder="Reminder date..."
+                        inputClassName="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all" 
+                      />
+                    </div>
+                    <div className="w-32">
+                      <input 
+                        type="time" 
+                        value={newTask.reminderAt ? newTask.reminderAt.split('T')[1]?.substring(0, 5) || '09:00' : ''} 
+                        onChange={e => {
+                          const date = newTask.reminderAt ? newTask.reminderAt.split('T')[0] || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                          setNewTask({...newTask, reminderAt: `${date}T${e.target.value}:00`});
+                        }}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all appearance-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <button 
                   type="submit" 
                   disabled={!newTask.title.trim() || !newTask.description.trim()}
@@ -2968,6 +3056,58 @@ export function Tasks({ user }: TasksProps) {
                   </button>
                   <button
                     onClick={() => handleDeleteTask(taskToDelete)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Delete Activity Confirmation Modal */}
+      <AnimatePresence>
+        {activityToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActivityToDelete(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#0F1115] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-6 h-6 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Delete Activity</h3>
+                    <p className="text-sm text-slate-400">Are you sure you want to delete this activity? This action cannot be undone.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setActivityToDelete(null)}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteActivity(activityToDelete.activityId, activityToDelete.taskId)}
                     disabled={isDeleting}
                     className="flex-1 px-4 py-2.5 rounded-xl bg-rose-500 text-white font-bold hover:bg-rose-600 transition-all flex items-center justify-center gap-2"
                   >

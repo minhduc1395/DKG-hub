@@ -1,9 +1,16 @@
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-dotenv.config();
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY!);
-async function run() {
-  const { data, error } = await supabase.rpc('get_columns', { table_name: 'profiles' });
-  console.log(error ? error : data);
+import { supabase } from './src/lib/supabaseClient';
+
+async function checkSchema() {
+  const { data, error } = await supabase
+    .from('time_off_requests')
+    .select('*')
+    .limit(1);
+
+  if (error) {
+    console.error('Error fetching time_off_requests:', error);
+  } else {
+    console.log('Columns in time_off_requests:', Object.keys(data[0] || {}));
+  }
 }
-run();
+
+checkSchema();

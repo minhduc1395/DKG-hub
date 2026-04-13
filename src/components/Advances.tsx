@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Search, Filter, FileText, CheckCircle, XCircle, Clock, ArrowRight, DollarSign, RefreshCw, X, Trash2, Send, AlertCircle, Loader2, Edit3, CheckSquare, Check, Copy, ChevronLeft, Download } from 'lucide-react';
+import { Plus, Search, Filter, FileText, CheckCircle, XCircle, Clock, ArrowRight, DollarSign, RefreshCw, X, Trash2, Send, AlertCircle, Loader2, Edit3, CheckSquare, Check, Copy, ChevronLeft, Download, ChevronDown } from 'lucide-react';
 import { DatePicker } from './DatePicker';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../context/UserContext';
 import { cn, formatDate } from '../lib/utils';
 import { exportAdvanceForm, exportClearanceForm } from '../lib/exportExcel';
+import { sendNotification, notifyAccountants, notifyBOD } from '../services/notificationService';
 
 export interface AdvanceItem {
   description: string;
@@ -68,6 +69,7 @@ export function Advances({ isApprovalView = false }: { isApprovalView?: boolean 
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [sortBy, setSortBy] = useState<string>('newest');
   const [dateFilter, setDateFilter] = useState<string>(isApprovalView ? 'this_month' : 'all');
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createType, setCreateType] = useState<'Advance' | 'Clearance'>('Advance');
@@ -370,16 +372,63 @@ export function Advances({ isApprovalView = false }: { isApprovalView?: boolean 
 
             <div className="flex items-center gap-3">
               {/* Date Filter */}
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer hover:bg-white/10"
-              >
-                <option value="all">All Time</option>
-                <option value="this_month">This Month</option>
-                <option value="last_month">Last Month</option>
-                <option value="this_year">This Year</option>
-              </select>
+              <div className="relative">
+                <button
+                  onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-300 focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer hover:bg-white/10 flex items-center gap-2 min-w-[120px] justify-between"
+                >
+                  <span>
+                    {dateFilter === 'all' ? 'All Time' : 
+                     dateFilter === 'this_month' ? 'This Month' : 
+                     dateFilter === 'last_month' ? 'Last Month' : 
+                     'This Year'}
+                  </span>
+                  <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", isDateFilterOpen && "rotate-180")} />
+                </button>
+
+                <AnimatePresence>
+                  {isDateFilterOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setIsDateFilterOpen(false)} 
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 mt-2 w-40 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                      >
+                        <div className="p-1.5 flex flex-col gap-1">
+                          {[
+                            { id: 'all', label: 'All Time' },
+                            { id: 'this_month', label: 'This Month' },
+                            { id: 'last_month', label: 'Last Month' },
+                            { id: 'this_year', label: 'This Year' }
+                          ].map((option) => (
+                            <button
+                              key={option.id}
+                              onClick={() => {
+                                setDateFilter(option.id);
+                                setIsDateFilterOpen(false);
+                              }}
+                              className={cn(
+                                "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                                dateFilter === option.id
+                                  ? "bg-blue-500 text-white shadow-lg"
+                                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                              )}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Advanced Filter Toggle */}
               <button
@@ -756,6 +805,7 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
   const [invoiceLink, setInvoiceLink] = useState('');
   const [approvedAdvances, setApprovedAdvances] = useState<AdvanceRequest[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAdvanceSelectOpen, setIsAdvanceSelectOpen] = useState(false);
 
   // Derive bank account info from user profile
   const bankAccountInfo = useMemo(() => {
@@ -807,9 +857,16 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    if (type === 'Clearance' && !relatedAdvanceId) {
-      onError('Please select an approved advance request.');
-      return;
+    if (type === 'Clearance') {
+      if (!relatedAdvanceId) {
+        onError('Please select an approved advance request.');
+        return;
+      }
+      const isValid = approvedAdvances.some(a => a.id === relatedAdvanceId);
+      if (!isValid) {
+        onError('Invalid advance request selected.');
+        return;
+      }
     }
     if (hasInvoice && !invoiceLink.trim()) {
       onError('Please provide an invoice link.');
@@ -841,6 +898,7 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
             status: 'Pending_Accountant'
           })
           .eq('id', editRequest.id)
+          .eq('requester_id', user.id)
           .select()
           .single();
         requestData = result.data;
@@ -877,6 +935,13 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
           actor_id: user.id,
           action: editRequest ? 'Resubmitted' : 'Submitted'
         });
+
+      // Notify Accountants
+      await notifyAccountants(
+        `New ${type} Request`,
+        `${user.name} has submitted a new ${type.toLowerCase()} request for ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}.`,
+        'advance'
+      );
 
       onSuccess();
       onClose();
@@ -932,19 +997,69 @@ function CreateAdvanceModal({ isOpen, onClose, type, onSuccess, onError, user, e
                 {type === 'Clearance' && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-300">Select Approved Advance <span className="text-rose-500">*</span></label>
-                    <select
-                      required
-                      value={relatedAdvanceId}
-                      onChange={(e) => setRelatedAdvanceId(e.target.value)}
-                      className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    >
-                      <option value="">-- Select Advance --</option>
-                      {approvedAdvances.map(adv => (
-                        <option key={adv.id} value={adv.id}>
-                          {adv.items[0]?.description} - {formatDisplayCurrency(adv.total_amount)}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsAdvanceSelectOpen(!isAdvanceSelectOpen)}
+                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 flex items-center justify-between transition-all hover:bg-white/10"
+                      >
+                        <span className={cn(!relatedAdvanceId && "text-slate-500")}>
+                          {relatedAdvanceId 
+                            ? `${approvedAdvances.find(a => a.id === relatedAdvanceId)?.items[0]?.description} - ${formatDisplayCurrency(approvedAdvances.find(a => a.id === relatedAdvanceId)?.total_amount || 0)}`
+                            : "-- Select Advance --"}
+                        </span>
+                        <ChevronDown className={cn("w-5 h-5 text-slate-400 transition-transform duration-200", isAdvanceSelectOpen && "rotate-180")} />
+                      </button>
+
+                      <AnimatePresence>
+                        {isAdvanceSelectOpen && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-[110]" 
+                              onClick={() => setIsAdvanceSelectOpen(false)} 
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                              className="absolute left-0 right-0 mt-2 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl z-[111] overflow-hidden max-h-60 overflow-y-auto custom-scrollbar"
+                            >
+                              <div className="p-1.5 flex flex-col gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRelatedAdvanceId('');
+                                    setIsAdvanceSelectOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-white hover:bg-white/5 transition-all"
+                                >
+                                  -- Select Advance --
+                                </button>
+                                {approvedAdvances.map(adv => (
+                                  <button
+                                    key={adv.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setRelatedAdvanceId(adv.id);
+                                      setIsAdvanceSelectOpen(false);
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all",
+                                      relatedAdvanceId === adv.id
+                                        ? "bg-blue-500 text-white shadow-lg"
+                                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                                    )}
+                                  >
+                                    {adv.items[0]?.description} - {formatDisplayCurrency(adv.total_amount)}
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 )}
 
@@ -1165,6 +1280,11 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
   };
 
   const handleAction = async (action: string, newStatus: string) => {
+    if (!isAccountant && !isBOD) {
+      onError('You do not have permission to perform this action.');
+      return;
+    }
+
     if ((action === 'Needs Edit' || action === 'Rejected') && !actionNote.trim()) {
       onError('Please provide a note/reason for this action.');
       return;
@@ -1189,6 +1309,40 @@ function AdvanceDetailModal({ isOpen, onClose, request, logs, loadingLogs, user,
           action,
           note: actionNote.trim() || null
         });
+
+      // Send Notification to Requester
+      let notificationTitle = '';
+      let notificationContent = '';
+
+      if (newStatus === 'Approved') {
+        notificationTitle = `${request.type} Approved`;
+        notificationContent = `Your ${request.type.toLowerCase()} request has been fully approved.`;
+      } else if (newStatus === 'Rejected') {
+        notificationTitle = `${request.type} Rejected`;
+        notificationContent = `Your ${request.type.toLowerCase()} request has been rejected. Reason: ${actionNote.trim() || 'No reason provided'}`;
+      } else if (newStatus === 'Needs_Edit') {
+        notificationTitle = `${request.type} Needs Edit`;
+        notificationContent = `Your ${request.type.toLowerCase()} request needs modification. Note: ${actionNote.trim() || 'No note provided'}`;
+      } else if (newStatus === 'Pending_BOD') {
+        notificationTitle = `${request.type} Forwarded to BOD`;
+        notificationContent = `Your ${request.type.toLowerCase()} request has been reviewed by the accountant and forwarded to BOD for final approval.`;
+        
+        // Also notify BOD
+        await notifyBOD(
+          `New ${request.type} Approval Required`,
+          `${request.requester?.full_name || 'An employee'} has a ${request.type.toLowerCase()} request pending your approval.`,
+          'advance'
+        );
+      }
+
+      if (notificationTitle && request.requester_id) {
+        await sendNotification(
+          request.requester_id,
+          notificationTitle,
+          notificationContent,
+          'advance'
+        );
+      }
 
       onSuccess(`Successfully ${action.toLowerCase()}`);
       setActionNote('');

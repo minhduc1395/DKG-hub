@@ -25,12 +25,14 @@ import {
   CreditCard,
   CheckSquare,
   Target,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, countBusinessDays } from '../lib/utils';
 import { User } from '../types';
 import { Task } from './Tasks';
 import { teamService, EmployeePerformance } from '../services/teamService';
+import { timeOffService } from '../services/timeOffService';
 import { payslipService } from '../services/payslipService';
 import { PayslipData as PayslipDetailData } from './PayslipDetail';
 import { supabase } from '../lib/supabaseClient';
@@ -63,18 +65,65 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
   const [isUpdatingDaysOff, setIsUpdatingDaysOff] = useState(false);
   const [editDaysOffValue, setEditDaysOffValue] = useState<number>(0);
+  const [leaveStartDate, setLeaveStartDate] = useState<string>('');
+  const [leaveEndDate, setLeaveEndDate] = useState<string>('');
+  const [showMorePayslips, setShowMorePayslips] = useState(false);
+  const [isAddingLeave, setIsAddingLeave] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [isHalfLeave, setIsHalfLeave] = useState(false);
+  const [isLastDayHalf, setIsLastDayHalf] = useState(false);
 
   useEffect(() => {
     fetchData();
+
+    // Subscribe to real-time updates for all relevant tables
+    const channels = [
+      supabase
+        .channel('team-status-tasks')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => fetchData(true))
+        .subscribe(),
+      supabase
+        .channel('team-status-attendance')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_logs' }, () => fetchData(true))
+        .subscribe(),
+      supabase
+        .channel('team-status-profiles')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData(true))
+        .subscribe(),
+      supabase
+        .channel('team-status-task-assignees')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, () => fetchData(true))
+        .subscribe(),
+      supabase
+        .channel('team-status-time-off')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'time_off_balances' }, () => fetchData(true))
+        .subscribe()
+    ];
+
+    return () => {
+      channels.forEach(channel => supabase.removeChannel(channel));
+    };
   }, [user.id]);
 
-  const [showMorePayslips, setShowMorePayslips] = useState(false);
+  useEffect(() => {
+    if (leaveStartDate && (leaveEndDate || isHalfLeave) && selectedEmployee) {
+      const businessDays = isHalfLeave ? 0.5 : countBusinessDays(leaveStartDate, leaveEndDate);
+      const diffDays = (!isHalfLeave && isLastDayHalf) ? Math.max(0, businessDays - 0.5) : businessDays;
+      setEditDaysOffValue(selectedEmployee.daysOff + diffDays);
+    } else if (selectedEmployee) {
+      setEditDaysOffValue(selectedEmployee.daysOff);
+    }
+  }, [leaveStartDate, leaveEndDate, isHalfLeave, isLastDayHalf, selectedEmployee]);
 
   useEffect(() => {
     if (selectedEmployee) {
       fetchEmployeePayslips(selectedEmployee.id);
       setShowMorePayslips(false); // Reset when selecting a new employee
       setEditDaysOffValue(selectedEmployee.daysOff);
+      setLeaveStartDate('');
+      setLeaveEndDate('');
+      setIsAddingLeave(false);
     }
   }, [selectedEmployee]);
 
@@ -91,8 +140,8 @@ export function TeamStatus({ user }: TeamStatusProps) {
     }
   };
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const [teamData, tasksResponse] = await Promise.all([
         teamService.getTeamPerformance(),
@@ -132,12 +181,18 @@ export function TeamStatus({ user }: TeamStatusProps) {
     } catch (error) {
       console.error("Error fetching team status data:", error);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData();
+    setIsRefreshing(false);
+  };
 
   const handleAssignTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -398,14 +453,43 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
   const handleUpdateDaysOff = async () => {
     if (!selectedEmployee) return;
+    console.log('Updating days off for:', selectedEmployee.id, 'to:', editDaysOffValue);
     setIsUpdatingDaysOff(true);
     try {
+      if (leaveStartDate && (leaveEndDate || isHalfLeave)) {
+        const diffDays = editDaysOffValue - selectedEmployee.daysOff;
+        const { error } = await supabase.from('time_off_requests').insert({
+          employee_id: selectedEmployee.id,
+          type: isHalfLeave ? 'Half Day' : 'Annual Leave',
+          start_date: leaveStartDate,
+          end_date: isHalfLeave ? leaveStartDate : leaveEndDate,
+          reason: 'Added by manager',
+          status: 'approved',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          total_days: diffDays
+        });
+        if (error) {
+          console.error("Insert error:", error);
+          alert("Failed to add leave request: " + error.message);
+          setIsUpdatingDaysOff(false);
+          return;
+        }
+      }
       await teamService.updateDaysOff(selectedEmployee.id, editDaysOffValue);
+      console.log('Update successful');
       // Update local state
       setTeam(prev => prev.map(emp => 
         emp.id === selectedEmployee.id ? { ...emp, daysOff: editDaysOffValue } : emp
       ));
       setSelectedEmployee(prev => prev ? { ...prev, daysOff: editDaysOffValue } : null);
+      setLeaveStartDate('');
+      setLeaveEndDate('');
+      setIsHalfLeave(false);
+      setIsLastDayHalf(false);
+      setIsAddingLeave(false);
+      alert("Updated days off successfully!");
+      fetchData(true); // Refresh data to get the new leave history
     } catch (error) {
       console.error("Error updating days off:", error);
       alert("Failed to update days off. Please try again.");
@@ -483,12 +567,22 @@ export function TeamStatus({ user }: TeamStatusProps) {
               )}
             </button>
           </div>
-          <button 
-            onClick={() => setIsAssignTaskOpen(true)}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] whitespace-nowrap"
-          >
-            Assign Task
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+              title="Refresh data"
+            >
+              <RefreshCw className={cn("w-5 h-5", isRefreshing && "animate-spin")} />
+            </button>
+            <button 
+              onClick={() => setIsAssignTaskOpen(true)}
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)] whitespace-nowrap"
+            >
+              Assign Task
+            </button>
+          </div>
         </div>
       </div>
 
@@ -593,7 +687,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                             <span className="text-slate-500">-</span>
                           ) : (
                             <div className="flex items-center justify-center gap-2">
-                              <span className="text-emerald-400 font-bold">{emp.tasksInProgress}</span>
+                              <span className="text-emerald-400 font-bold">{emp.tasksInProgress + emp.tasksPending}</span>
                               <span className="text-slate-500">/</span>
                               <span className="text-amber-400 font-bold">{emp.totalTasks}</span>
                             </div>
@@ -627,7 +721,6 @@ export function TeamStatus({ user }: TeamStatusProps) {
                           <div className="flex items-center justify-end gap-2">
                             <button 
                               onClick={() => {
-                                setSelectedEmployee(emp);
                                 setIsAssignTaskOpen(true);
                                 setNewTask(prev => ({ ...prev, assigneeId: emp.id }));
                               }}
@@ -1016,7 +1109,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-amber-400" /> Attendance
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
                       <div>
                         <p className="text-xs font-bold text-slate-500 uppercase">Late Days</p>
@@ -1031,30 +1124,113 @@ export function TeamStatus({ user }: TeamStatusProps) {
                       </div>
                       <Clock className={cn("w-8 h-8", selectedEmployee.otHours > 0 ? "text-blue-400" : "text-slate-600")} />
                     </div>
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group/daysoff">
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-slate-500 uppercase">Days Off</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <input 
-                            type="number"
-                            value={editDaysOffValue}
-                            onChange={(e) => setEditDaysOffValue(Number(e.target.value))}
-                            className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-lg font-black text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                          />
-                          <span className="text-sm text-slate-500 font-medium">/ 14</span>
-                          {editDaysOffValue !== selectedEmployee.daysOff && (
-                            <button 
-                              onClick={handleUpdateDaysOff}
-                              disabled={isUpdatingDaysOff}
-                              className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all disabled:opacity-50"
-                              title="Save changes"
-                            >
-                              {isUpdatingDaysOff ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                            </button>
-                          )}
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-4 transition-all duration-300">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 uppercase">Days Off (Used)</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xl font-black text-white">{editDaysOffValue}</span>
+                            <span className="text-sm text-slate-500 font-medium">/ 14</span>
+                            {editDaysOffValue !== selectedEmployee.daysOff && (
+                              <button 
+                                onClick={handleUpdateDaysOff}
+                                disabled={isUpdatingDaysOff}
+                                className="p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all disabled:opacity-50"
+                                title="Save changes"
+                              >
+                                {isUpdatingDaysOff ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                              </button>
+                            )}
+                          </div>
                         </div>
+                        <button 
+                          onClick={() => setIsAddingLeave(!isAddingLeave)}
+                          className={cn(
+                            "p-2 rounded-xl transition-all",
+                            isAddingLeave ? "bg-blue-500/20 text-blue-400" : "hover:bg-white/5 text-slate-400 hover:text-white"
+                          )}
+                        >
+                          <Calendar className={cn("w-6 h-6 shrink-0", editDaysOffValue >= 14 ? "text-rose-400" : "")} />
+                        </button>
                       </div>
-                      <Calendar className={cn("w-8 h-8 shrink-0", editDaysOffValue >= 14 ? "text-rose-400" : "text-blue-400")} />
+                      
+                      <AnimatePresence>
+                        {isAddingLeave && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-4 border-t border-white/5 space-y-3">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Add New Leave</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-600 uppercase">From</label>
+                                  <DatePicker 
+                                    value={leaveStartDate}
+                                    onChange={setLeaveStartDate}
+                                    placeholder="Start"
+                                    inputClassName="p-2 text-xs h-9"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-600 uppercase">To</label>
+                                  <DatePicker 
+                                    value={leaveEndDate}
+                                    onChange={setLeaveEndDate}
+                                    placeholder="End"
+                                    inputClassName="p-2 text-xs h-9"
+                                    disabled={isHalfLeave}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                  <div className="relative w-8 h-5">
+                                    <input 
+                                      type="checkbox" 
+                                      className="sr-only peer"
+                                      checked={isHalfLeave}
+                                      onChange={(e) => {
+                                        setIsHalfLeave(e.target.checked);
+                                        if (e.target.checked) setIsLastDayHalf(false);
+                                      }}
+                                    />
+                                    <div className="w-8 h-5 bg-white/10 rounded-full border border-white/10 peer-checked:bg-blue-500/50 transition-all" />
+                                    <div className="absolute left-0.5 top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all peer-checked:translate-x-3" />
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-white transition-colors">Single Half Day</span>
+                                </label>
+
+                                {!isHalfLeave && leaveStartDate !== leaveEndDate && (
+                                  <label className="flex items-center gap-2 cursor-pointer group">
+                                    <div className="relative w-8 h-5">
+                                      <input 
+                                        type="checkbox" 
+                                        className="sr-only peer"
+                                        checked={isLastDayHalf}
+                                        onChange={(e) => setIsLastDayHalf(e.target.checked)}
+                                      />
+                                      <div className="w-8 h-5 bg-white/10 rounded-full border border-white/10 peer-checked:bg-blue-500/50 transition-all" />
+                                      <div className="absolute left-0.5 top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all peer-checked:translate-x-3" />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-white transition-colors">Last Day is Half</span>
+                                  </label>
+                                )}
+                              </div>
+                              {leaveStartDate && (leaveEndDate || isHalfLeave) && (
+                                <p className="text-[10px] text-blue-400 font-medium">
+                                  Adding {(() => {
+                                    const businessDays = isHalfLeave ? 0.5 : countBusinessDays(leaveStartDate, leaveEndDate);
+                                    return (!isHalfLeave && isLastDayHalf) ? Math.max(0, businessDays - 0.5) : businessDays;
+                                  })()} business days to current balance
+                                </p>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 </div>
@@ -1065,16 +1241,16 @@ export function TeamStatus({ user }: TeamStatusProps) {
                     <div className="flex items-center gap-2">
                       <Target className="w-5 h-5 text-blue-400" /> Active Tasks
                     </div>
-                    {selectedEmployee.tasks && selectedEmployee.tasks.filter(t => t.status?.toLowerCase() !== 'done').length > 0 && (
+                    {selectedEmployee.tasks && selectedEmployee.tasks.filter(t => !['done', 'cancelled'].includes(t.status?.toLowerCase())).length > 0 && (
                       <span className="text-xs font-medium text-slate-500">
-                        {selectedEmployee.tasks.filter(t => t.status?.toLowerCase() !== 'done').length} tasks
+                        {selectedEmployee.tasks.filter(t => !['done', 'cancelled'].includes(t.status?.toLowerCase())).length} tasks
                       </span>
                     )}
                   </h3>
-                  {selectedEmployee.tasks && selectedEmployee.tasks.filter(t => t.status?.toLowerCase() !== 'done').length > 0 ? (
+                  {selectedEmployee.tasks && selectedEmployee.tasks.filter(t => !['done', 'cancelled'].includes(t.status?.toLowerCase())).length > 0 ? (
                     <div className="space-y-3">
                       {selectedEmployee.tasks
-                        .filter(t => t.status?.toLowerCase() !== 'done')
+                        .filter(t => !['done', 'cancelled'].includes(t.status?.toLowerCase()))
                         .sort((a, b) => {
                           // Sort by overdue first, then by priority
                           const aOverdue = a.deadline && new Date(a.deadline) < new Date(new Date().setHours(0,0,0,0));
@@ -1128,6 +1304,37 @@ export function TeamStatus({ user }: TeamStatusProps) {
                   ) : (
                     <div className="p-8 rounded-2xl bg-white/5 border border-white/10 text-center">
                       <p className="text-slate-400">No active tasks for this employee.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Approved Leave Info */}
+                <div>
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-rose-400" /> Approved Leave
+                  </h3>
+                  {selectedEmployee.approvedLeaveHistory && selectedEmployee.approvedLeaveHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedEmployee.approvedLeaveHistory.map(leave => (
+                        <div key={leave.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-white">{leave.type}</span>
+                            <span className="text-[10px] font-bold text-blue-400 uppercase">
+                              {leave.total_days || countBusinessDays(leave.start_date, leave.end_date)} Days
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-400">
+                            <span>{new Date(leave.start_date).toLocaleDateString()} - {new Date(leave.end_date).toLocaleDateString()}</span>
+                          </div>
+                          {leave.reason && (
+                            <p className="text-[10px] text-slate-500 italic mt-1 line-clamp-1">"{leave.reason}"</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 rounded-2xl bg-white/5 border border-white/10 text-center">
+                      <p className="text-slate-400">No approved leave records found.</p>
                     </div>
                   )}
                 </div>

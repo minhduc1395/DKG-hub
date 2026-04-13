@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import axios from "axios";
 import cron from "node-cron";
-import { checkTaskDeadlines } from "./src/services/taskNotificationService.ts";
+import { checkTaskDeadlines, checkReminders } from "./src/services/taskNotificationService.ts";
 
 async function startServer() {
   const app = express();
@@ -14,6 +14,12 @@ async function startServer() {
     await checkTaskDeadlines();
   });
 
+  // Schedule task reminders (Run every minute)
+  cron.schedule("* * * * *", async () => {
+    console.log("[Cron] Running task reminder check...");
+    await checkReminders();
+  });
+
   // Manual trigger for task deadline check (for testing)
   app.post("/api/tasks/check-deadlines", async (req, res) => {
     try {
@@ -22,6 +28,17 @@ async function startServer() {
     } catch (error) {
       console.error("[API] Error triggering task deadline check:", error);
       res.status(500).json({ status: "error", message: "Failed to trigger task deadline check" });
+    }
+  });
+
+  // Manual trigger for task reminder check (for testing)
+  app.post("/api/tasks/check-reminders", async (req, res) => {
+    try {
+      await checkReminders();
+      res.json({ status: "ok", message: "Task reminder check triggered successfully" });
+    } catch (error) {
+      console.error("[API] Error triggering task reminder check:", error);
+      res.status(500).json({ status: "error", message: "Failed to trigger task reminder check" });
     }
   });
 

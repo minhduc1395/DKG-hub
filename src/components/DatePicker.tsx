@@ -12,9 +12,10 @@ interface DatePickerProps {
   placeholder?: string;
   autoFocus?: boolean;
   onBlur?: () => void;
+  disabled?: boolean;
 }
 
-export function DatePicker({ value, onChange, className, inputClassName, placeholder, autoFocus, onBlur }: DatePickerProps) {
+export function DatePicker({ value, onChange, className, inputClassName, placeholder, autoFocus, onBlur, disabled }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -187,18 +188,24 @@ export function DatePicker({ value, onChange, className, inputClassName, placeho
               inputRef.current?.blur();
             }
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => !disabled && setIsOpen(true)}
           placeholder={placeholder || "DD MMM YYYY"}
+          disabled={disabled}
           className={cn(
             "w-full p-3 bg-white/5 text-white border border-white/10 rounded-xl placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all",
             inputClassName,
-            "pr-10"
+            "pr-10",
+            disabled && "opacity-50 cursor-not-allowed"
           )}
         />
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-slate-200 transition-colors"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={cn(
+            "absolute right-3 top-1/2 -translate-y-1/2 text-white hover:text-slate-200 transition-colors",
+            disabled && "opacity-50 cursor-not-allowed"
+          )}
         >
           <CalendarIcon className="w-5 h-5" />
         </button>

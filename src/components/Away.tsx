@@ -4,13 +4,13 @@ import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, Pl
 import { isWithinInterval, parseISO, startOfDay } from 'date-fns';
 import { User } from '../types';
 import { timeOffService, TimeOffBalance, TimeOffRequest } from '../services/timeOffService';
-import { cn, formatDate } from '../lib/utils';
+import { cn, formatDate, countBusinessDays } from '../lib/utils';
 import { DatePicker } from './DatePicker';
 import { supabase } from '../lib/supabaseClient';
 
 interface AwayProps {
   user: User;
-  initialTab?: 'my-requests' | 'approvals';
+  initialTab?: 'my-requests' | 'approvals' | 'history';
   defaultOpenModal?: boolean;
 }
 
@@ -21,8 +21,17 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const [approvalHistory, setApprovalHistory] = useState<TimeOffRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(defaultOpenModal || false);
-  const [activeTab, setActiveTab] = useState<'my-requests' | 'approvals'>(
-    initialTab || (user.role === 'manager' ? 'approvals' : 'my-requests')
+  const isBOD = 
+    user.department?.toUpperCase() === 'BOD' || 
+    user.role?.toLowerCase() === 'ceo' || 
+    user.role?.toLowerCase() === 'bod' ||
+    user.position?.toLowerCase() === 'ceo' ||
+    user.position?.toLowerCase() === 'bod';
+
+  const isManager = user.role === 'manager' || isBOD || user.role?.toLowerCase() === 'accountant' || user.position?.toLowerCase() === 'accountant';
+
+  const [activeTab, setActiveTab] = useState<'my-requests' | 'approvals' | 'history'>(
+    initialTab || (isBOD ? 'approvals' : 'my-requests')
   );
 
   // Calendar State
@@ -82,8 +91,10 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
     startDate: '',
     endDate: '',
     isHalfDay: false,
+    isLastDayHalf: false,
     session: 'Morning' as 'Morning' | 'Afternoon',
-    reason: ''
+    reason: '',
+    totalDaysOverride: '' as string | number
   });
 
   useEffect(() => {
@@ -131,10 +142,10 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
       setBalance(bal);
       setHistory(hist);
 
-      if (user.role === 'manager') {
+      if (isManager) {
         const [pending, appHistory] = await Promise.all([
-          timeOffService.fetchPendingApprovals(user.id),
-          timeOffService.fetchApprovalHistory(user.id)
+          timeOffService.fetchPendingApprovals(user.id, isBOD),
+          timeOffService.fetchApprovalHistory(user.id, isBOD)
         ]);
         setApprovals(pending);
         setApprovalHistory(appHistory);
@@ -149,11 +160,13 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let { startDate, endDate, isHalfDay, session, type } = formData;
+      let { startDate, endDate, isHalfDay, isLastDayHalf, session, type } = formData;
       
       if (isHalfDay) {
         endDate = startDate;
         type = `${type} (Half Day - ${session})`;
+      } else if (isLastDayHalf) {
+        type = `${type} (Last Day Half - Morning)`;
       }
 
       // Ensure startDate is before or equal to endDate
@@ -166,16 +179,29 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         }
       }
 
+      const calculatedDays = isHalfDay ? 0.5 : (isLastDayHalf ? Math.max(0, countBusinessDays(startDate, endDate) - 0.5) : countBusinessDays(startDate, endDate));
+      const finalTotalDays = formData.totalDaysOverride !== '' ? Number(formData.totalDaysOverride) : calculatedDays;
+
       await timeOffService.submitRequest({
         userId: user.id,
         userName: user.name,
         ...formData,
         type,
         startDate,
-        endDate
+        endDate,
+        totalDays: finalTotalDays
       });
       setIsModalOpen(false);
-      setFormData({ type: 'Annual Leave', startDate: '', endDate: '', isHalfDay: false, session: 'Morning', reason: '' });
+      setFormData({ 
+        type: 'Annual Leave', 
+        startDate: '', 
+        endDate: '', 
+        isHalfDay: false, 
+        isLastDayHalf: false,
+        session: 'Morning', 
+        reason: '',
+        totalDaysOverride: ''
+      });
       loadData();
     } catch (error) {
       console.error('Error submitting request:', error);
@@ -240,12 +266,25 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         }
       }
 
-      await timeOffService.updateRequestStatus(id, status);
+      await timeOffService.updateRequestStatus(id, status, user.id);
       console.log(`Successfully updated request ${id} to status: ${status}`);
       await loadData();
     } catch (error: any) {
       console.error('Error updating status:', error);
       alert(`Failed to update status: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!window.confirm('Are you sure you want to cancel this request?')) return;
+    
+    try {
+      await timeOffService.cancelRequest(id);
+      console.log(`Successfully cancelled request ${id}`);
+      await loadData();
+    } catch (error: any) {
+      console.error('Error cancelling request:', error);
+      alert(`Failed to cancel request: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -256,12 +295,14 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 uppercase tracking-wider flex items-center gap-1 w-fit"><CheckCircle2 className="w-3 h-3" /> Approved</span>;
       case 'rejected':
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 uppercase tracking-wider flex items-center gap-1 w-fit"><XCircle className="w-3 h-3" /> Rejected</span>;
+      case 'cancelled':
+        return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400 uppercase tracking-wider flex items-center gap-1 w-fit"><XCircle className="w-3 h-3" /> Cancelled</span>;
       default:
         return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase tracking-wider flex items-center gap-1 w-fit"><Clock className="w-3 h-3" /> Pending</span>;
     }
   };
 
-  const isManagerMode = initialTab === 'approvals';
+  const isManagerMode = initialTab === 'approvals' || initialTab === 'history';
 
   if (isLoading) {
     return (
@@ -277,13 +318,13 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight">
-            {isManagerMode ? 'Leave Approvals' : 'Time Off'}
+            {isManagerMode || isBOD ? 'Leave Approvals' : 'Time Off'}
           </h1>
           <p className="text-slate-400 mt-1">
-            {isManagerMode ? 'Review and manage team leave requests' : 'Manage your leave requests and balances'}
+            {isManagerMode || isBOD ? 'Review and manage team leave requests' : 'Manage your leave requests and balances'}
           </p>
         </div>
-        {!isManagerMode && (
+        {!isManagerMode && !isBOD && (
           <button 
             onClick={() => setIsModalOpen(true)}
             className="px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
@@ -293,8 +334,8 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         )}
       </div>
 
-      {/* Summary Cards - Hidden in Manager Mode */}
-      {!isManagerMode && (
+      {/* Summary Cards - Hidden in Manager Mode or for BOD */}
+      {!isManagerMode && !isBOD && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
             { label: 'Total Day Off', value: balance?.total || 0, color: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -320,9 +361,9 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         </div>
       )}
 
-      <div className={`grid grid-cols-1 ${isManagerMode ? '' : 'lg:grid-cols-3'} gap-8`}>
-        {/* Left Column: Calendar - Hidden in Manager Mode */}
-        {!isManagerMode && (
+      <div className={`grid grid-cols-1 ${isManagerMode || isBOD ? '' : 'lg:grid-cols-3'} gap-8`}>
+        {/* Left Column: Calendar - Hidden in Manager Mode or for BOD */}
+        {!isManagerMode && !isBOD && (
           <div className="lg:col-span-1 space-y-6">
             <div className="p-6 rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]">
               <div className="flex items-center justify-between mb-6">
@@ -391,14 +432,16 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
         <div className={`${isManagerMode ? 'w-full' : 'lg:col-span-2'} space-y-6`}>
           <div className="rounded-[2rem] bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] overflow-hidden">
             <div className="flex flex-wrap border-b border-white/5">
-              {!isManagerMode ? (
+              {!isManagerMode && !isBOD && (
                 <button 
                   onClick={() => setActiveTab('my-requests')}
                   className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   My Requests
                 </button>
-              ) : (
+              )}
+
+              {(isManager || isManagerMode) && (
                 <button 
                   onClick={() => setActiveTab('approvals')}
                   className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
@@ -410,117 +453,172 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                 </button>
               )}
               
-              {isManagerMode ? (
+              {isManagerMode && (
                 <button 
-                  onClick={() => setActiveTab('my-requests')}
-                  className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'my-requests' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => setActiveTab('history')}
+                  className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'history' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  Approval History
+                  History Approvals
                 </button>
-              ) : (
-                user.role === 'manager' && (
-                  <button 
-                    onClick={() => setActiveTab('approvals')}
-                    className={`flex-1 min-w-[120px] py-4 px-2 text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'approvals' ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-400/5' : 'text-slate-400 hover:text-slate-200'}`}
-                  >
-                    Team Approvals
-                    {approvals.length > 0 && (
-                      <span className="ml-2 px-1.5 py-0.5 rounded-full bg-blue-500 text-white text-[10px]">{approvals.length}</span>
-                    )}
-                  </button>
-                )
               )}
             </div>
 
             <div className="p-6">
               {activeTab === 'my-requests' ? (
                 <div className="space-y-4">
-                  {isManagerMode ? (
-                    approvalHistory.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500">No data available.</div>
-                    ) : (
-                      <div className="flex flex-col gap-4">
-                        {approvalHistory.map((req) => (
-                          <div key={req.id} className="p-5 rounded-2xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                              {req.userAvatar ? (
-                                <img 
-                                  src={req.userAvatar} 
-                                  alt={req.userName} 
-                                  className="w-10 h-10 rounded-full object-cover border border-white/10"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold shrink-0">
-                                  {req.userName.charAt(0)}
-                                </div>
-                              )}
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-white">{req.userName}</span>
-                                <span className="text-xs text-slate-400">{req.type} • {formatDate(req.startDate)} to {formatDate(req.endDate)}</span>
-                                <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
-                              </div>
-                            </div>
-                            <div className="shrink-0">
-                              {getStatusBadge(req.status)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
+                  {history.length === 0 ? (
+                    <div className="text-center py-12 text-slate-500">No data available.</div>
                   ) : (
-                    history.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500">No data available.</div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="border-b border-white/5">
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">From</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">To</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Days</th>
-                              <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {history.map((req) => {
-                              // Ensure dates are in correct order for calculation
-                              const d1 = new Date(req.startDate);
-                              const d2 = new Date(req.endDate);
-                              const start = d1 < d2 ? d1 : d2;
-                              const end = d1 < d2 ? d2 : d1;
-                              
-                              const diffTime = Math.abs(end.getTime() - start.getTime());
-                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                              return (
-                                <tr key={req.id} className="group">
-                                  <td className="py-4">
-                                    <div className="flex flex-col">
-                                      <span className="text-sm font-bold text-white">{req.type}</span>
-                                      <span className="text-xs text-slate-500">{req.reason}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-4 text-sm font-medium text-slate-300">
-                                    {formatDate(req.startDate < req.endDate ? req.startDate : req.endDate)}
-                                  </td>
-                                  <td className="py-4 text-sm font-medium text-slate-300">
-                                    {formatDate(req.startDate < req.endDate ? req.endDate : req.startDate)}
-                                  </td>
-                                  <td className="py-4 text-sm font-medium text-slate-300 text-center">{diffDays}</td>
-                                  <td className="py-4 text-center">
-                                    <div className="flex justify-center">
-                                      {getStatusBadge(req.status)}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-white/5">
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">From</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">To</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Days</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {history.map((req) => {
+                            // Use totalDays from request if available, otherwise calculate
+                            const displayDays = req.totalDays !== undefined && req.totalDays !== null 
+                              ? req.totalDays 
+                              : (req.type.toLowerCase().includes('half day') 
+                                  ? (countBusinessDays(req.startDate, req.endDate) > 0 ? 0.5 : 0) 
+                                  : countBusinessDays(req.startDate, req.endDate));
+                            return (
+                              <tr key={req.id} className="group">
+                                <td className="py-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-white">{req.type}</span>
+                                    <span className="text-xs text-slate-500">{req.reason}</span>
+                                  </div>
+                                </td>
+                                <td className="py-4 text-sm font-medium text-slate-300">
+                                  {formatDate(req.startDate < req.endDate ? req.startDate : req.endDate)}
+                                </td>
+                                <td className="py-4 text-sm font-medium text-slate-300">
+                                  {formatDate(req.startDate < req.endDate ? req.endDate : req.startDate)}
+                                </td>
+                                <td className="py-4 text-sm font-medium text-slate-300 text-center">{displayDays}</td>
+                                <td className="py-4">
+                                  <div className="flex flex-col items-center gap-1">
+                                    {getStatusBadge(req.status)}
+                                    {req.approverName && req.status.toLowerCase() !== 'pending' && (
+                                      <span className="text-[10px] text-slate-500 italic">
+                                        By: {req.approverName}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-4 text-right">
+                                  {(req.status.toLowerCase() === 'pending' || req.status.toLowerCase() === 'approved') && (
+                                    (() => {
+                                      const today = new Date();
+                                      today.setHours(0, 0, 0, 0);
+                                      const start = new Date(req.startDate);
+                                      start.setHours(0, 0, 0, 0);
+                                      
+                                      if (start > today) {
+                                        return (
+                                          <button
+                                            onClick={() => handleCancel(req.id)}
+                                            className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-500/10"
+                                          >
+                                            Cancel
+                                          </button>
+                                        );
+                                      }
+                                      return null;
+                                    })()
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
+                </div>
+              ) : activeTab === 'history' ? (
+                <div className="space-y-4">
+                  {approvalHistory.length === 0 ? (
+                    <div className="text-center py-12 text-slate-500">No data available.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-white/5">
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Dates</th>
+                            <th className="pb-4 px-2 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Days</th>
+                            <th className="pb-4 px-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Approver</th>
+                            <th className="pb-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {approvalHistory.map((req) => (
+                            <tr key={req.id} className="group">
+                              <td className="py-4">
+                                <div className="flex items-center gap-3">
+                                  {req.userAvatar ? (
+                                    <img 
+                                      src={req.userAvatar} 
+                                      alt={req.userName} 
+                                      className="w-8 h-8 rounded-full object-cover border border-white/10"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold shrink-0">
+                                      {req.userName.charAt(0)}
+                                    </div>
+                                  )}
+                                  <span className="text-sm font-bold text-white">{req.userName}</span>
+                                </div>
+                              </td>
+                              <td className="py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-sm text-slate-300">{req.type}</span>
+                                  <span className="text-[10px] text-slate-500 italic truncate max-w-[150px]">{req.reason}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 text-sm text-slate-400">
+                                {formatDate(req.startDate)} - {formatDate(req.endDate)}
+                              </td>
+                              <td className="py-4 text-center text-sm text-slate-400">
+                                {req.totalDays !== undefined ? req.totalDays : (
+                                  req.type.toLowerCase().includes('half day') 
+                                    ? (countBusinessDays(req.startDate, req.endDate) > 0 ? 0.5 : 0) 
+                                    : countBusinessDays(req.startDate, req.endDate)
+                                )}
+                              </td>
+                              <td className="py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-blue-400">{req.approverName}</span>
+                                  {req.approvedAt && (
+                                    <span className="text-[10px] text-slate-500 italic">
+                                      {formatDate(req.approvedAt, 'dd MMM yyyy HH:mm')}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 text-center">
+                                <div className="flex justify-center">
+                                  {getStatusBadge(req.status)}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                  }
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -545,7 +643,12 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                              )}
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-white">{req.userName}</span>
-                              <span className="text-xs text-slate-400">{req.type} • {formatDate(req.startDate)} to {formatDate(req.endDate)}</span>
+                              <span className="text-xs text-slate-400">
+                                {req.type} • {formatDate(req.startDate)} to {formatDate(req.endDate)}
+                                {req.totalDays !== undefined && (
+                                  <span className="ml-1 text-blue-400 font-medium">({req.totalDays} business days)</span>
+                                )}
+                              </span>
                               <p className="text-xs text-slate-500 mt-1 italic">"{req.reason}"</p>
                             </div>
                           </div>
@@ -626,64 +729,84 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Date <span className="text-rose-500">*</span></label>
                       <DatePicker 
                         value={formData.startDate} 
-                        onChange={(date) => setFormData({...formData, startDate: date})} 
+                        onChange={(date) => setFormData({...formData, startDate: date, endDate: formData.isHalfDay ? date : formData.endDate})} 
                         placeholder="Select Start Day"
                         inputClassName="w-full p-4 bg-white/5 rounded-2xl border border-white/10 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                       />
                     </div>
-                    {!formData.isHalfDay && (
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date <span className="text-rose-500">*</span></label>
-                        <DatePicker 
-                          value={formData.endDate} 
-                          onChange={(date) => setFormData({...formData, endDate: date})} 
-                          placeholder="Select End Day"
-                          inputClassName="w-full p-4 bg-white/5 rounded-2xl border border-white/10 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
-                        />
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Date <span className="text-rose-500">*</span></label>
+                      <DatePicker 
+                        value={formData.endDate} 
+                        onChange={(date) => setFormData({...formData, endDate: date})} 
+                        placeholder="Select End Day"
+                        disabled={formData.isHalfDay}
+                        inputClassName="w-full p-4 bg-white/5 rounded-2xl border border-white/10 text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500 disabled:opacity-50"
+                      />
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-4 py-2">
+                  <div className="flex flex-wrap items-center gap-6 py-2">
                     <label className="flex items-center gap-2 cursor-pointer group">
                       <div className="relative w-10 h-6">
                         <input 
                           type="checkbox" 
                           className="sr-only peer"
                           checked={formData.isHalfDay}
-                          onChange={(e) => setFormData({...formData, isHalfDay: e.target.checked})}
+                          onChange={(e) => setFormData({
+                            ...formData, 
+                            isHalfDay: e.target.checked,
+                            isLastDayHalf: false,
+                            endDate: e.target.checked ? formData.startDate : formData.endDate
+                          })}
                         />
                         <div className="w-10 h-6 bg-white/10 rounded-full border border-white/10 peer-checked:bg-blue-500/50 transition-all" />
                         <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-4" />
                       </div>
-                      <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Half Day</span>
+                      <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Single Half Day</span>
                     </label>
 
-                    {formData.isHalfDay && (
-                      <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
-                        <button
-                          type="button"
-                          onClick={() => setFormData({...formData, session: 'Morning'})}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            formData.session === 'Morning' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
-                          )}
-                        >
-                          Morning
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData({...formData, session: 'Afternoon'})}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                            formData.session === 'Afternoon' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
-                          )}
-                        >
-                          Afternoon
-                        </button>
-                      </div>
+                    {!formData.isHalfDay && formData.startDate !== formData.endDate && (
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative w-10 h-6">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={formData.isLastDayHalf}
+                            onChange={(e) => setFormData({...formData, isLastDayHalf: e.target.checked})}
+                          />
+                          <div className="w-10 h-6 bg-white/10 rounded-full border border-white/10 peer-checked:bg-blue-500/50 transition-all" />
+                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-4" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">Last Day is Half</span>
+                      </label>
                     )}
                   </div>
+
+                  {formData.isHalfDay && (
+                    <div className="flex items-center gap-2 bg-white/5 p-2 rounded-2xl border border-white/10 w-fit">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, session: 'Morning'})}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                          formData.session === 'Morning' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
+                        )}
+                      >
+                        Morning
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, session: 'Afternoon'})}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                          formData.session === 'Afternoon' ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20" : "text-slate-400 hover:text-white"
+                        )}
+                      >
+                        Afternoon
+                      </button>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Reason <span className="text-rose-500">*</span></label>
@@ -697,6 +820,34 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
                       />
                     </div>
                   </div>
+
+                  {formData.startDate && (formData.endDate || formData.isHalfDay) && (
+                    <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-bold text-blue-400 flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4" />
+                          Calculated: {(() => {
+                            if (formData.isHalfDay) return 0.5;
+                            const days = countBusinessDays(formData.startDate, formData.endDate);
+                            return formData.isLastDayHalf ? Math.max(0, days - 0.5) : days;
+                          })()} business days
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Override Total Days (Optional)</label>
+                        <input 
+                          type="number" 
+                          step="0.5"
+                          min="0.5"
+                          placeholder="e.g. 1.5"
+                          value={formData.totalDaysOverride}
+                          onChange={(e) => setFormData({...formData, totalDaysOverride: e.target.value})}
+                          className="w-full p-2 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-blue-500/50 text-sm"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">Saturdays and Sundays are automatically excluded from calculation.</p>
+                    </div>
+                  )}
 
                   <button 
                     type="submit"

@@ -23,3 +23,25 @@ export function normalizeFileName(fileName: string): string {
   // Replace any character that is not alphanumeric, dot, or hyphen with underscore
   return normalized.replace(/[^a-zA-Z0-9.-]/g, '_');
 }
+
+export function countBusinessDays(startDate: Date | string, endDate: Date | string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+  
+  // Ensure start is before end
+  const d1 = start < end ? start : end;
+  const d2 = start < end ? end : start;
+  
+  let count = 0;
+  const curDate = new Date(d1.getTime());
+  while (curDate <= d2) {
+    const dayOfWeek = curDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 0 is Sunday, 6 is Saturday
+      count++;
+    }
+    curDate.setDate(curDate.getDate() + 1);
+  }
+  return count;
+}

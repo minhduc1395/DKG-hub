@@ -165,6 +165,7 @@ export function Dashboard({ user, notifications, onAction, onMarkAsRead, onMarkA
         id: event.id,
         title: event.title,
         date: new Date(event.event_date),
+        endDate: event.end_date ? new Date(event.end_date) : undefined,
         time: event.start_time ? event.start_time.slice(0, 5) : 'All Day',
         location: event.location,
         type: 'company'

@@ -26,10 +26,27 @@ export function Attendance({ user }: AttendanceProps) {
 
   useEffect(() => {
     fetchAttendanceData();
+
+    // Subscribe to real-time updates for attendance_logs
+    const channel = supabase
+      .channel('attendance-logs-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'attendance_logs',
+        filter: `employee_id=eq.${user.id}`
+      }, () => {
+        fetchAttendanceData(true);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user.id, currentDate]);
 
-  const fetchAttendanceData = async () => {
-    setIsLoading(true);
+  const fetchAttendanceData = async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     setError(null);
     try {
       const year = currentDate.getFullYear();
@@ -61,7 +78,7 @@ export function Attendance({ user }: AttendanceProps) {
       console.error('Error fetching attendance:', err);
       setError('Failed to load attendance data.');
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 

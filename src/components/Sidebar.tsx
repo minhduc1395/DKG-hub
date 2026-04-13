@@ -168,7 +168,7 @@ export function Sidebar({ activeTab, setActiveTab, onLogout, user, isOpen = fals
         </div>
         
         <nav className="flex flex-1 flex-col gap-2 px-4 overflow-y-auto pt-2 pb-4 min-h-0 custom-scrollbar">
-          {navItems.filter(item => !(isManager && item.id === 'timeoff')).map((item) => {
+          {navItems.filter(item => !(isBOD && item.id === 'timeoff')).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

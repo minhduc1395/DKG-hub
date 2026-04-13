@@ -178,6 +178,7 @@ export function Calendar({ user }: CalendarProps) {
           newEvents.push({
             id: `event-${event.id}`,
             date: new Date(event.event_date),
+            endDate: event.end_date ? new Date(event.end_date) : undefined,
             title: event.title,
             type: event.type === 'Holiday' ? 'holiday' : 'company'
           });
@@ -391,7 +392,10 @@ export function Calendar({ user }: CalendarProps) {
             </span>
           </div>
           
-          <div className="mt-1 flex flex-col gap-0.5 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pb-1">
+          <div 
+            className="mt-1 flex flex-col gap-0.5 flex-1 pb-1"
+            style={{ clipPath: 'inset(0 -10px 0 -10px)' }}
+          >
             {Array.from({ length: maxSlot + 1 }).map((_, slotIndex) => {
               const event = dayEvents.find(e => eventSlots[e.id] === slotIndex);
               
@@ -405,7 +409,11 @@ export function Calendar({ user }: CalendarProps) {
 
               const isStart = targetDate.getTime() === start.getTime() || day === 1;
               const isEnd = targetDate.getTime() === adjustedEnd.getTime() || day === daysInMonth;
-              const isMultiDay = adjustedEnd.getTime() > start.getTime();
+              
+              // An event is multi-day if it spans more than one calendar day
+              const isMultiDay = (adjustedEnd.getFullYear() !== start.getFullYear() || 
+                                 adjustedEnd.getMonth() !== start.getMonth() || 
+                                 adjustedEnd.getDate() !== start.getDate());
 
               // Check if the event continues from the previous week (Sunday)
               const isStartOfWeek = targetDate.getDay() === 0;
@@ -418,19 +426,24 @@ export function Calendar({ user }: CalendarProps) {
                 <div 
                   key={event.id}
                   className={cn(
-                    "text-[9px] py-0.5 truncate font-medium leading-tight shrink-0 h-[18px] flex items-center relative z-10",
+                    "text-[9px] py-0.5 truncate font-medium leading-tight shrink-0 h-[18px] flex items-center relative z-10 transition-all",
                     eventTypes[event.type as keyof typeof eventTypes].bgColor,
                     eventTypes[event.type as keyof typeof eventTypes].textColor,
-                    isMultiDay && !showStartRounded ? "rounded-l-none border-l-0 ml-0 pl-1.5" : "ml-1.5 pl-1.5",
-                    isMultiDay && !showEndRounded ? "rounded-r-none border-r-0 mr-0 pr-1.5" : "mr-1.5 pr-1.5",
-                    isMultiDay && showStartRounded && "rounded-l-sm",
-                    isMultiDay && showEndRounded && "rounded-r-sm",
-                    !isMultiDay && "rounded-sm mx-1.5 px-1.5"
+                    // Multi-day connection logic
+                    isMultiDay ? (
+                      cn(
+                        !showStartRounded ? "rounded-l-none border-l-0 -ml-[2px] pl-2" : "ml-1 rounded-l-sm pl-1.5",
+                        !showEndRounded ? "rounded-r-none border-r-0 -mr-[2px] pr-2" : "mr-1 rounded-r-sm pr-1.5",
+                        "z-20" // Higher z-index for multi-day bars to cover borders
+                      )
+                    ) : (
+                      "rounded-sm mx-1 px-1.5"
+                    )
                   )}
                   title={event.title}
                 >
                   {event.type === 'birthday' && <Cake className="w-2.5 h-2.5 mr-1 shrink-0" />}
-                  {(!isMultiDay || showStartRounded || targetDate.getDay() === 1) ? event.title : '\u00A0'}
+                  {(!isMultiDay || showStartRounded) ? event.title : '\u00A0'}
                 </div>
               );
             })}

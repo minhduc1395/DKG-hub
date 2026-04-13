@@ -16,6 +16,7 @@ export interface EmployeePerformance {
   otHours: number;
   daysOff: number;
   tasks: any[];
+  approvedLeaveHistory?: any[];
 }
 
 export const teamService = {
@@ -67,14 +68,27 @@ export const teamService = {
         // Don't throw, just continue with empty attendance
       }
 
-      // 4. Fetch time off balances
+      // 4. Fetch time off balances for the current year
+      const currentYear = new Date().getFullYear();
+
       const { data: timeOffBalances, error: timeOffError } = await supabase
         .from('time_off_balances')
-        .select('employee_id, used');
+        .select('*')
+        .eq('year', currentYear);
 
       if (timeOffError) {
         console.warn('Error fetching time off balances:', timeOffError);
       }
+
+      // 4.5 Fetch time off requests for history
+      const startOfYear = new Date(currentYear, 0, 1).toISOString();
+      const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59).toISOString();
+      const { data: timeOffRequests } = await supabase
+        .from('time_off_requests')
+        .select('*')
+        .in('status', ['approved', 'Approved'])
+        .gte('start_date', startOfYear)
+        .lte('start_date', endOfYear);
 
       // 5. Aggregate data
       const performanceData: EmployeePerformance[] = (profiles || []).map(profile => {
@@ -98,17 +112,18 @@ export const teamService = {
           assignerName: t.assigner?.full_name || 'Unknown'
         }));
         const employeeAttendance = (attendance || []).filter(a => a.employee_id === profile.id);
-        const employeeTimeOff = (timeOffBalances || []).find(t => t.employee_id === profile.id);
+        const employeeTimeOffRequests = (timeOffRequests || []).filter(t => t.employee_id === profile.id);
+        const employeeTimeOffBalance = (timeOffBalances || []).find(t => t.employee_id === profile.id);
 
-        const tasksCompleted = employeeTasks.filter(t => t.status === 'Done').length;
-        const tasksInProgress = employeeTasks.filter(t => t.status === 'In Progress').length;
-        const tasksPending = employeeTasks.filter(t => ['Todo', 'Review'].includes(t.status)).length;
-        const totalTasks = employeeTasks.length;
+        const tasksCompleted = employeeTasks.filter(t => t.status?.toLowerCase() === 'done').length;
+        const tasksInProgress = employeeTasks.filter(t => ['in progress', 'doing'].includes(t.status?.toLowerCase() || '')).length;
+        const tasksPending = employeeTasks.filter(t => ['todo', 'review', 'pending'].includes(t.status?.toLowerCase() || '')).length;
+        const totalTasks = employeeTasks.filter(t => t.status?.toLowerCase() !== 'cancelled').length;
         
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tasksOverdue = employeeTasks.filter(t => {
-          if (t.status === 'Done') return false;
+          if (t.status?.toLowerCase() === 'done') return false;
           if (!t.deadline) return false;
           const deadline = new Date(t.deadline);
           deadline.setHours(0, 0, 0, 0);
@@ -123,7 +138,8 @@ export const teamService = {
           return sum + (hours > 8 ? hours - 8 : 0);
         }, 0);
 
-        const daysOff = employeeTimeOff?.used || 0;
+        // Calculate days off directly from approved requests to ensure alignment with history
+        const daysOff = employeeTimeOffRequests.reduce((total, req) => total + (Number(req.total_days) || 0), 0);
 
         return {
           id: profile.id,
@@ -139,8 +155,9 @@ export const teamService = {
           tasksOverdue,
           lateDays,
           otHours: Math.round(otHours * 10) / 10,
-          daysOff,
-          tasks: employeeTasks
+          daysOff: Number(daysOff.toFixed(1)), // Keep 1 decimal place without rounding integers unnecessarily
+          tasks: employeeTasks,
+          approvedLeaveHistory: employeeTimeOffRequests.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
         };
       });
 
@@ -153,13 +170,28 @@ export const teamService = {
   },
 
   async updateDaysOff(employeeId: string, used: number) {
+    const currentYear = new Date().getFullYear();
+    // First fetch current balance to get total
+    const { data: currentBalance } = await supabase
+      .from('time_off_balances')
+      .select('total')
+      .eq('employee_id', employeeId)
+      .eq('year', currentYear)
+      .single();
+    
+    const total = (currentBalance?.total === 12 ? 14 : currentBalance?.total) || 14;
+    const remaining = total - used;
+
     const { error } = await supabase
       .from('time_off_balances')
       .upsert({ 
         employee_id: employeeId, 
+        year: currentYear,
+        total: total,
         used: used,
+        remaining: remaining,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'employee_id' });
+      }, { onConflict: 'employee_id,year' });
     
     if (error) throw error;
   }
