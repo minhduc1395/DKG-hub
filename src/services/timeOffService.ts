@@ -28,10 +28,12 @@ export interface TimeOffRequest {
 export const timeOffService = {
   async fetchBalance(userId: string): Promise<TimeOffBalance> {
     try {
+      const currentYear = new Date().getFullYear();
       const { data, error } = await supabase
         .from('time_off_balances')
         .select('total, used, remaining')
         .eq('employee_id', userId)
+        .eq('year', currentYear)
         .single();
 
       if (error) {
@@ -615,12 +617,12 @@ export const timeOffService = {
         .select('*')
         .eq('employee_id', request.employee_id)
         .eq('year', year)
-        .single();
+        .maybeSingle();
 
       if (balance) {
-        const currentTotal = balance.total === 12 ? 14 : balance.total;
-        const newUsed = balance.used + daysToSubtract;
-        await supabase
+        const currentTotal = balance.total || 14;
+        const newUsed = Number(balance.used) + daysToSubtract;
+        const { error: updateError } = await supabase
           .from('time_off_balances')
           .update({
             total: currentTotal,
@@ -629,12 +631,14 @@ export const timeOffService = {
             updated_at: new Date().toISOString()
           })
           .eq('employee_id', request.employee_id)
-          .eq('year', balance.year);
+          .eq('year', year);
+          
+        if (updateError) throw updateError;
       } else {
         // Create balance if it doesn't exist
         const totalAllowance = 14; // Default to 14
         const used = daysToSubtract;
-        await supabase
+        const { error: insertError } = await supabase
           .from('time_off_balances')
           .insert([{
             employee_id: request.employee_id,
@@ -644,6 +648,8 @@ export const timeOffService = {
             remaining: totalAllowance - used,
             updated_at: new Date().toISOString()
           }]);
+          
+        if (insertError) throw insertError;
       }
     } catch (error) {
       console.error('Error updating balance for request:', error);
@@ -673,12 +679,12 @@ export const timeOffService = {
         .select('*')
         .eq('employee_id', request.employee_id)
         .eq('year', year)
-        .single();
+        .maybeSingle();
 
       if (balance) {
-        const currentTotal = balance.total === 12 ? 14 : balance.total;
-        const newUsed = Math.max(0, balance.used - daysToRestore);
-        await supabase
+        const currentTotal = balance.total || 14;
+        const newUsed = Math.max(0, Number(balance.used) - daysToRestore);
+        const { error: updateError } = await supabase
           .from('time_off_balances')
           .update({
             total: currentTotal,
@@ -687,23 +693,36 @@ export const timeOffService = {
             updated_at: new Date().toISOString()
           })
           .eq('employee_id', request.employee_id)
-          .eq('year', balance.year);
-      } else {
-        // Create balance if it doesn't exist (though it should if it was approved)
-        const totalAllowance = 14;
-        await supabase
-          .from('time_off_balances')
-          .insert([{
-            employee_id: request.employee_id,
-            year: year,
-            total: totalAllowance,
-            used: 0,
-            remaining: totalAllowance,
-            updated_at: new Date().toISOString()
-          }]);
+          .eq('year', year);
+          
+        if (updateError) throw updateError;
       }
     } catch (error) {
       console.error('Error restoring balance for request:', error);
+    }
+  },
+
+  async getTeamApprovedDaysOffYTD(employeeIds: string[]): Promise<Record<string, number>> {
+    try {
+      const { data, error } = await supabase.rpc('get_approved_days_off_ytd', {
+        p_employee_ids: employeeIds
+      });
+
+      if (error) {
+        console.error('Error fetching approved days off YTD:', error);
+        throw error;
+      }
+
+      const result: Record<string, number> = {};
+      if (data) {
+        data.forEach((item: any) => {
+          result[item.employee_id] = Number(item.total_approved_days) || 0;
+        });
+      }
+      return result;
+    } catch (error) {
+      console.error('Exception in getTeamApprovedDaysOffYTD:', error);
+      return {};
     }
   }
 };

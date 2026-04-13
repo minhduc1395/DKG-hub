@@ -44,6 +44,7 @@ interface TeamStatusProps {
 
 export function TeamStatus({ user }: TeamStatusProps) {
   const [team, setTeam] = useState<EmployeePerformance[]>([]);
+  const [teamDaysOffYTD, setTeamDaysOffYTD] = useState<Record<string, number>>({});
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
@@ -73,6 +74,17 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
   const [isHalfLeave, setIsHalfLeave] = useState(false);
   const [isLastDayHalf, setIsLastDayHalf] = useState(false);
+
+  useEffect(() => {
+    async function fetchDaysOffYTD() {
+      if (team.length > 0) {
+        const employeeIds = team.map(emp => emp.id);
+        const daysOffData = await timeOffService.getTeamApprovedDaysOffYTD(employeeIds);
+        setTeamDaysOffYTD(daysOffData);
+      }
+    }
+    fetchDaysOffYTD();
+  }, [team]);
 
   useEffect(() => {
     fetchData();
@@ -713,9 +725,14 @@ export function TeamStatus({ user }: TeamStatusProps) {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className={cn("font-bold", emp.daysOff >= 12 ? "text-rose-400" : "text-blue-400")}>
-                            {emp.daysOff}
-                          </span>
+                          <div className="flex flex-col items-center justify-center">
+                            <span className={cn("font-bold", emp.daysOff >= 12 ? "text-rose-400" : "text-blue-400")}>
+                              {emp.daysOff}
+                            </span>
+                            <span className="text-[10px] text-slate-500 mt-1 whitespace-nowrap">
+                              Days Off (YTD): {teamDaysOffYTD[emp.id] ?? 0} ngày
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">

@@ -139,6 +139,27 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
       }
 
       console.log('Fetched history:', hist);
+      
+      // Calculate actual used from history for the current year
+      const currentYear = new Date().getFullYear();
+      const usedFromHistory = hist
+        .filter(req => {
+          const status = req.status?.toLowerCase();
+          const reqYear = new Date(req.startDate).getFullYear();
+          return status === 'approved' && reqYear === currentYear;
+        })
+        .reduce((sum, req) => sum + (req.totalDays || 0), 0);
+      
+      // If balance from DB is out of sync with history, use history value
+      if (bal.used !== usedFromHistory) {
+        console.log(`[Away] Balance out of sync. DB: ${bal.used}, History: ${usedFromHistory}. Using history.`);
+        bal = {
+          ...bal,
+          used: usedFromHistory,
+          remaining: bal.total - usedFromHistory
+        };
+      }
+
       setBalance(bal);
       setHistory(hist);
 
