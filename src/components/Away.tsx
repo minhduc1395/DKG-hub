@@ -142,13 +142,22 @@ export function Away({ user, initialTab, defaultOpenModal }: AwayProps) {
       
       // Calculate actual used from history for the current year
       const currentYear = new Date().getFullYear();
-      const usedFromHistory = hist
-        .filter(req => {
-          const status = req.status?.toLowerCase();
-          const reqYear = new Date(req.startDate).getFullYear();
-          return status === 'approved' && reqYear === currentYear;
-        })
-        .reduce((sum, req) => sum + (req.totalDays || 0), 0);
+        const usedFromHistory = hist
+          .filter(req => {
+            const status = req.status?.toLowerCase();
+            const reqYear = new Date(req.startDate).getFullYear();
+            return status === 'approved' && reqYear === currentYear;
+          })
+          .reduce((sum, req) => {
+            // Dùng cùng fallback logic với cột hiển thị DAYS
+            const days =
+              req.totalDays !== undefined && req.totalDays !== null && req.totalDays > 0
+                ? req.totalDays
+                : req.type?.toLowerCase().includes('half day')
+                ? 0.5
+                : countBusinessDays(req.startDate, req.endDate);
+            return sum + days;
+          }, 0);
       
       // If balance from DB is out of sync with history, use history value
       if (bal.used !== usedFromHistory) {
