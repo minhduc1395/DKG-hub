@@ -101,9 +101,9 @@ export function Settings() {
             <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-bold text-amber-400 mb-1">Password Recovery Mode</h3>
+                <h3 className="text-sm font-bold text-amber-400 mb-1">Bạn đang đặt lại mật khẩu</h3>
                 <p className="text-sm text-amber-400/80">
-                  Please enter your new password below. You don't need to provide your current password.
+                  Vui lòng nhập mật khẩu mới bên dưới. Không cần nhập mật khẩu cũ.
                 </p>
               </div>
             </div>

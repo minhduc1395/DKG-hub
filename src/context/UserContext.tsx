@@ -18,11 +18,13 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const isInitialRecoveryMode = typeof window !== 'undefined' && window.location.hash.includes('type=recovery');
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [actualUser, setActualUser] = useState<User | null>(null);
   const [simulatedRole, setSimulatedRole] = useState<SimulatedRole>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(isInitialRecoveryMode);
   const fetchingProfileRef = React.useRef(false);
 
   const user = React.useMemo(() => {

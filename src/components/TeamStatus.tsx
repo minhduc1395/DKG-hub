@@ -44,7 +44,6 @@ interface TeamStatusProps {
 
 export function TeamStatus({ user }: TeamStatusProps) {
   const [team, setTeam] = useState<EmployeePerformance[]>([]);
-  const [teamDaysOffYTD, setTeamDaysOffYTD] = useState<Record<string, number>>({});
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
@@ -75,17 +74,6 @@ export function TeamStatus({ user }: TeamStatusProps) {
 
   const [isHalfLeave, setIsHalfLeave] = useState(false);
   const [isLastDayHalf, setIsLastDayHalf] = useState(false);
-
-  useEffect(() => {
-    async function fetchDaysOffYTD() {
-      if (team.length > 0) {
-        const employeeIds = team.map(emp => emp.id);
-        const daysOffData = await timeOffService.getTeamApprovedDaysOffYTD(employeeIds);
-        setTeamDaysOffYTD(daysOffData);
-      }
-    }
-    fetchDaysOffYTD();
-  }, [team]);
 
   useEffect(() => {
     fetchData();
@@ -156,8 +144,15 @@ export function TeamStatus({ user }: TeamStatusProps) {
   const fetchData = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
+      const isBOD = 
+        user.department?.toUpperCase() === 'BOD' || 
+        user.role?.toLowerCase() === 'ceo' || 
+        user.role?.toLowerCase() === 'bod' ||
+        user.position?.toLowerCase() === 'ceo' ||
+        user.position?.toLowerCase() === 'bod';
+
       const [teamData, tasksResponse] = await Promise.all([
-        teamService.getTeamPerformance(),
+        teamService.getTeamPerformance(user.id, !!isBOD),
         supabase
           .from('tasks')
           .select(`
@@ -169,28 +164,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
           .order('deadline', { ascending: true })
       ]);
 
-      const isBOD = 
-        user.department?.toUpperCase() === 'BOD' || 
-        user.role?.toLowerCase() === 'ceo' || 
-        user.role?.toLowerCase() === 'bod' ||
-        user.position?.toLowerCase() === 'ceo' ||
-        user.position?.toLowerCase() === 'bod';
-
-      let visibleTeam = teamData;
-      if (!isBOD) {
-        const getSubordinates = (managerId: string): string[] => {
-          const directSubordinates = teamData.filter(emp => emp.manager_id === managerId).map(emp => emp.id);
-          let allSubordinates = [...directSubordinates];
-          for (const subId of directSubordinates) {
-            allSubordinates = [...allSubordinates, ...getSubordinates(subId)];
-          }
-          return allSubordinates;
-        };
-        const subordinateIds = getSubordinates(user.id);
-        visibleTeam = teamData.filter(emp => emp.id === user.id || subordinateIds.includes(emp.id));
-      }
-
-      setTeam(visibleTeam);
+      setTeam(teamData);
       
       if (tasksResponse.data) {
         const formattedTasks: Task[] = tasksResponse.data.map(t => ({
@@ -747,14 +721,9 @@ export function TeamStatus({ user }: TeamStatusProps) {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <span className={cn("font-bold", emp.daysOff >= 12 ? "text-rose-400" : "text-blue-400")}>
-                              {emp.daysOff}
-                            </span>
-                            <span className="text-[10px] text-slate-500 mt-1 whitespace-nowrap">
-                              Days Off (YTD): {teamDaysOffYTD[emp.id] ?? 0} ngày
-                            </span>
-                          </div>
+                          <span className={cn("font-bold", emp.daysOff >= 12 ? "text-rose-400" : "text-blue-400")}>
+                            {emp.daysOff}
+                          </span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">

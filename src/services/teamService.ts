@@ -21,7 +21,7 @@ export interface EmployeePerformance {
 }
 
 export const teamService = {
-  async getTeamPerformance(): Promise<EmployeePerformance[]> {
+  async getTeamPerformance(managerId: string, isBOD: boolean = false): Promise<EmployeePerformance[]> {
     try {
       // 1. Fetch all profiles (employees)
       const { data: profiles, error: profilesError } = await supabase
@@ -41,6 +41,21 @@ export const teamService = {
         `);
 
       if (profilesError) throw profilesError;
+
+      let filteredProfiles = profiles || [];
+      if (!isBOD) {
+        // Recursive get all subordinate IDs
+        const getSubIds = (allProfiles: any[], mgrId: string): string[] => {
+          const directSubordinates = allProfiles.filter(p => p.manager_id === mgrId).map(p => p.id);
+          let allSubordinates = [...directSubordinates];
+          for (const subId of directSubordinates) {
+            allSubordinates = [...allSubordinates, ...getSubIds(allProfiles, subId)];
+          }
+          return allSubordinates;
+        };
+        const subIds = getSubIds(profiles || [], managerId);
+        filteredProfiles = (profiles || []).filter(p => p.id === managerId || subIds.includes(p.id));
+      }
 
       // 2. Fetch all tasks and their multi-assignees
       const { data: tasks, error: tasksError } = await supabase
@@ -93,7 +108,7 @@ export const teamService = {
         .lte('start_date', endOfYear);
 
       // 5. Aggregate data
-      const performanceData: EmployeePerformance[] = (profiles || []).map(profile => {
+      const performanceData: EmployeePerformance[] = filteredProfiles.map(profile => {
         // Handle potentially nested array structure from Supabase join
         const jobPositionData = profile.job_positions;
         const jobPosition = Array.isArray(jobPositionData) ? jobPositionData[0] : jobPositionData;
@@ -125,7 +140,7 @@ export const teamService = {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tasksOverdue = employeeTasks.filter(t => {
-          if (t.status?.toLowerCase() === 'done') return false;
+          if (['done', 'cancelled'].includes(t.status?.toLowerCase())) return false;
           if (!t.deadline) return false;
           const deadline = new Date(t.deadline);
           deadline.setHours(0, 0, 0, 0);
