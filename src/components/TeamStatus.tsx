@@ -48,6 +48,7 @@ export function TeamStatus({ user }: TeamStatusProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
+  const [showTaskDetails, setShowTaskDetails] = useState(false);
   const [employeePayslips, setEmployeePayslips] = useState<PayslipDetailData[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [isAssignTaskOpen, setIsAssignTaskOpen] = useState(false);
@@ -168,7 +169,28 @@ export function TeamStatus({ user }: TeamStatusProps) {
           .order('deadline', { ascending: true })
       ]);
 
-      setTeam(teamData);
+      const isBOD = 
+        user.department?.toUpperCase() === 'BOD' || 
+        user.role?.toLowerCase() === 'ceo' || 
+        user.role?.toLowerCase() === 'bod' ||
+        user.position?.toLowerCase() === 'ceo' ||
+        user.position?.toLowerCase() === 'bod';
+
+      let visibleTeam = teamData;
+      if (!isBOD) {
+        const getSubordinates = (managerId: string): string[] => {
+          const directSubordinates = teamData.filter(emp => emp.manager_id === managerId).map(emp => emp.id);
+          let allSubordinates = [...directSubordinates];
+          for (const subId of directSubordinates) {
+            allSubordinates = [...allSubordinates, ...getSubordinates(subId)];
+          }
+          return allSubordinates;
+        };
+        const subordinateIds = getSubordinates(user.id);
+        visibleTeam = teamData.filter(emp => emp.id === user.id || subordinateIds.includes(emp.id));
+      }
+
+      setTeam(visibleTeam);
       
       if (tasksResponse.data) {
         const formattedTasks: Task[] = tasksResponse.data.map(t => ({
@@ -1098,9 +1120,17 @@ export function TeamStatus({ user }: TeamStatusProps) {
               <div className="p-6 overflow-y-auto custom-scrollbar space-y-8">
                 {/* Work Info */}
                 <div>
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <CheckSquare className="w-5 h-5 text-blue-400" /> Work Status
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 text-blue-400" /> Work Status
+                    </h3>
+                    <button 
+                      onClick={() => setShowTaskDetails(true)}
+                      className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/30 transition-colors"
+                    >
+                      Work Status Detail
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
                       <p className="text-xs font-bold text-slate-500 uppercase">Completed</p>
@@ -1426,6 +1456,80 @@ export function TeamStatus({ user }: TeamStatusProps) {
                     <div className="p-8 rounded-2xl bg-white/5 border border-white/10 text-center">
                       <p className="text-slate-400">No payslips found for this employee.</p>
                     </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Task Details Modal */}
+      <AnimatePresence>
+        {showTaskDetails && selectedEmployee && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowTaskDetails(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl bg-[#0F1115] border border-white/10 rounded-[2rem] shadow-2xl z-[111] overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                    <CheckSquare className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Task Details</h2>
+                    <p className="text-sm text-slate-400">{selectedEmployee.name}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowTaskDetails(false)}
+                  className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div className="space-y-4">
+                  {selectedEmployee.tasks.length === 0 ? (
+                    <div className="text-center py-12 text-slate-500">
+                      No tasks found for this employee.
+                    </div>
+                  ) : (
+                    selectedEmployee.tasks.map((task: any) => (
+                      <div key={task.id} className="p-5 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h4 className="text-base font-bold text-white">{task.title}</h4>
+                            <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+                          </div>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+                            task.status === 'Done' ? "bg-emerald-500/20 text-emerald-400" :
+                            task.status === 'In Progress' || task.status === 'Doing' ? "bg-blue-500/20 text-blue-400" :
+                            "bg-amber-500/20 text-amber-400"
+                          )}>
+                            {task.status}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Deadline: {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No deadline'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <UserIcon className="w-3.5 h-3.5" />
+                            <span>Assigned by: {task.assignerName}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>

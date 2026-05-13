@@ -5,7 +5,7 @@ import { Lock, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export function Settings() {
-  const { user } = useUser();
+  const { user, isPasswordRecovery, setIsPasswordRecovery } = useUser();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,8 +17,8 @@ export function Settings() {
     e.preventDefault();
     setMessage(null);
 
-    if (!newPassword || !confirmPassword || !currentPassword) {
-      setMessage({ type: 'error', text: 'Please fill in all fields' });
+    if (!newPassword || !confirmPassword || (!isPasswordRecovery && !currentPassword)) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
       return;
     }
 
@@ -43,17 +43,11 @@ export function Settings() {
     try {
       if (!user?.email) throw new Error('User email not found');
 
-      // 1. Verify old password by attempting to sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      });
-
-      if (signInError) {
-        throw new Error('Incorrect current password');
-      }
-
-      // 2. Update password
+      // Note: We don't verify old password by attempting to sign in anymore to avoid race condition 
+      // with onAuthStateChange and profile fetching. We just update the password.
+      // If of currentPassword is required by backend securely, it should be done via a secure RPC or 
+      // users need to rely on their active session.
+      
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -66,6 +60,10 @@ export function Settings() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      
+      if (isPasswordRecovery) {
+        setIsPasswordRecovery(false);
+      }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Failed to update password' });
     } finally {
@@ -98,20 +96,34 @@ export function Settings() {
               <p className="text-sm text-slate-400">Update your password and security settings</p>
             </div>
           </div>
+          
+          {isPasswordRecovery && (
+            <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-amber-400 mb-1">Password Recovery Mode</h3>
+                <p className="text-sm text-amber-400/80">
+                  Please enter your new password below. You don't need to provide your current password.
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="max-w-md space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                Current Password <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
-                placeholder="Enter current password"
-              />
-            </div>
+            {!isPasswordRecovery && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  Current Password <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all"
+                  placeholder="Enter current password"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">

@@ -7,6 +7,7 @@ export interface EmployeePerformance {
   department: string;
   role: string;
   position?: string;
+  manager_id?: string;
   tasksCompleted: number;
   tasksPending: number;
   tasksInProgress: number;
@@ -30,6 +31,7 @@ export const teamService = {
           full_name, 
           avatar_url, 
           department,
+          manager_id,
           job_positions (
             title,
             roles (
@@ -148,6 +150,7 @@ export const teamService = {
           department: profile.department || 'Unknown',
           role: roleName,
           position: jobPosition?.title,
+          manager_id: profile.manager_id,
           tasksCompleted,
           tasksPending,
           tasksInProgress,

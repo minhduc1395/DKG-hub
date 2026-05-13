@@ -12,6 +12,8 @@ interface UserContextType {
   logout: () => Promise<void>;
   simulatedRole: SimulatedRole;
   setSimulatedRole: React.Dispatch<React.SetStateAction<SimulatedRole>>;
+  isPasswordRecovery: boolean;
+  setIsPasswordRecovery: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -20,6 +22,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [actualUser, setActualUser] = useState<User | null>(null);
   const [simulatedRole, setSimulatedRole] = useState<SimulatedRole>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const fetchingProfileRef = React.useRef(false);
 
   const user = React.useMemo(() => {
@@ -74,6 +77,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         console.log("Auth event:", event);
         
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
+        }
+
         if (event === 'SIGNED_OUT') {
           setActualUser(null);
           setIsLoading(false);
@@ -253,7 +260,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [simulatedRole]);
 
   return (
-    <UserContext.Provider value={{ user, setUser: handleSetUser, isAuthenticated: !!user, isLoading, logout, simulatedRole, setSimulatedRole }}>
+    <UserContext.Provider value={{ 
+      user, setUser: handleSetUser, isAuthenticated: !!user, isLoading, logout, simulatedRole, setSimulatedRole,
+      isPasswordRecovery, setIsPasswordRecovery
+    }}>
       {children}
     </UserContext.Provider>
   );

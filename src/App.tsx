@@ -39,7 +39,7 @@ function LoadingFallback() {
 }
 
 function AppContent() {
-  const { user, setUser, isAuthenticated, isLoading, logout } = useUser();
+  const { user, setUser, isAuthenticated, isLoading, logout, isPasswordRecovery, setIsPasswordRecovery } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -185,21 +185,23 @@ function AppContent() {
 
   // Handle Password Recovery Redirect
   useEffect(() => {
-    if (window.location.pathname === '/update-password') {
+    if (window.location.pathname === '/update-password' || /type=recovery/.test(window.location.hash)) {
       setActiveTab('settings');
-      // Optional: Clean up URL to avoid staying on /update-password
-      window.history.replaceState({}, document.title, "/");
-    }
-    
-    // Listen for Supabase Password Recovery event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setActiveTab('settings');
+      // If we got here via URL, ensure context knows we are in recovery mode
+      if (/type=recovery/.test(window.location.hash)) {
+         setIsPasswordRecovery(true);
       }
-    });
+      
+      // Optional: Clean up URL to avoid staying on /update-password
+      // window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [setIsPasswordRecovery]);
 
-    return () => subscription.unsubscribe();
-  }, []);
+  useEffect(() => {
+    if (isPasswordRecovery) {
+      setActiveTab('settings');
+    }
+  }, [isPasswordRecovery]);
 
   if (isLoading) {
     return (
